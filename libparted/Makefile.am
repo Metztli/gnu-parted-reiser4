@@ -3,6 +3,7 @@
 #
 # This file may be modified and/or distributed without restriction.
 
+AUTOMAKE_OPTIONS = subdir-objects
 SUBDIRS_CHECK =
 if HAVE_CHECK
 SUBDIRS_CHECK += tests

@@ -3,6 +3,8 @@
 #
 # This file may be modified and/or distributed without restriction.
 
+AUTOMAKE_OPTIONS = subdir-objects
+
 partedincludedir = -I$(top_builddir)/include -I$(top_srcdir)/include
 
 AM_CFLAGS = $(WARN_CFLAGS)
@@ -44,6 +46,7 @@ libfs_la_SOURCES =		\
   ntfs/ntfs.c			\
   reiserfs/reiserfs.c		\
   reiserfs/reiserfs.h		\
+  reiser4/reiser4.c		\
   ufs/ufs.c			\
   xfs/platform_defs.h		\
   xfs/xfs.c			\
