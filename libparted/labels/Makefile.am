@@ -19,6 +19,7 @@ noinst_LTLIBRARIES    =	liblabels.la
 liblabels_la_SOURCES = \
   $(S390_SRCS)	\
   aix.c		\
+  atari.c	\
   bsd.c		\
   dos.c		\
   dvh.c		\
@@ -35,7 +36,7 @@ liblabels_la_SOURCES = \
   rdb.c		\
   sun.c
 
-liblabels_la_LIBADD = $(OS_LIBS) $(INTLLIBS)
+liblabels_la_LIBADD = $(OS_LIBS) $(INTLLIBS) $(LIBICONV)
 
 AM_CPPFLAGS = $(partedincludedir) $(INTLINCS)
 

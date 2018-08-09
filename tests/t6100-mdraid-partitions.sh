@@ -38,6 +38,7 @@ parted -s "$scsi_dev" mklabel gpt \
     mkpart p1 ext2 1M 4M \
     mkpart p2 ext2 5M 8M > out 2>&1 || fail=1
 compare /dev/null out || fail=1
+wait_for_dev_to_appear_ ${scsi_dev}2 || { fail=1; cat /proc/partitions; }
 
 cleanup_fn_() {
   # stop mdraid array
@@ -46,6 +47,7 @@ cleanup_fn_() {
 
 # create mdraid on top of both partitions
 mdadm -C $md_dev --force -R -l1 -n2 "${scsi_dev}1" "${scsi_dev}2"
+wait_for_dev_to_appear_ ${md_dev} || { fail=1; cat /proc/partitions; }
 
 # create gpt and two partitions on the raid device
 parted -s $md_dev mklabel gpt \

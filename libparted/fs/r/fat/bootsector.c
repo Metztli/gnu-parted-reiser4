@@ -125,18 +125,6 @@ fat_boot_sector_analyse (FatBootSector* bs, PedFileSystem* fs)
 
 	PED_ASSERT (bs != NULL);
 
-	if (PED_LE16_TO_CPU (bs->sector_size) != 512) {
-		if (ped_exception_throw (
-			PED_EXCEPTION_BUG,
-			PED_EXCEPTION_IGNORE_CANCEL,
-			_("This file system has a logical sector size of %d.  "
-			"GNU Parted is known not to work properly with sector "
-			"sizes other than 512 bytes."),
-			(int) PED_LE16_TO_CPU (bs->sector_size))
-				!= PED_EXCEPTION_IGNORE)
-			return 0;
-	}
-
 	fs_info->logical_sector_size = PED_LE16_TO_CPU (bs->sector_size) / 512;
 
 	fs_info->sectors_per_track = PED_LE16_TO_CPU (bs->secs_track);
@@ -281,8 +269,13 @@ fat_boot_sector_analyse (FatBootSector* bs, PedFileSystem* fs)
 
 #ifndef DISCOVER_ONLY
 int
-fat_boot_sector_set_boot_code (FatBootSector* bs)
+fat_boot_sector_set_boot_code (FatBootSector** bsp, const PedFileSystem* fs)
 {
+	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
+
+	PED_ASSERT (bsp != NULL);
+	*bsp = ped_malloc (fs->geom->dev->sector_size);
+	FatBootSector *bs = *bsp;
 	PED_ASSERT (bs != NULL);
 
 	memset (bs, 0, 512);
@@ -297,8 +290,8 @@ fat_boot_sector_generate (FatBootSector** bsp, const PedFileSystem* fs)
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
 
 	PED_ASSERT (bsp != NULL);
-	*bsp = ped_malloc (fs->geom->dev->sector_size);
 	FatBootSector *bs = *bsp;
+	PED_ASSERT (bs != NULL);
 
 	memcpy (bs->system_id, "MSWIN4.1", 8);
 	bs->sector_size = PED_CPU_TO_LE16 (fs_info->logical_sector_size * 512);

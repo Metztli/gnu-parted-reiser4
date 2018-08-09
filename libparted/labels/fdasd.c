@@ -106,28 +106,26 @@ fdasd_cleanup (fdasd_anchor_t *anchor)
 {
 	PDEBUG
 	int i;
-	partition_info_t *p, *q;
+	partition_info_t *part_info, *next;
 
 	if (anchor == NULL)
 		return;
 
-        free(anchor->f4);
-        free(anchor->f5);
-        free(anchor->f7);
-        free(anchor->f9);
-        free(anchor->vlabel);
+	if (anchor->f4 != NULL)
+		free(anchor->f4);
+	if (anchor->f5 != NULL)
+		free(anchor->f5);
+	if (anchor->f7 != NULL)
+		free(anchor->f7);
+	if (anchor->vlabel != NULL)
+		free(anchor->vlabel);
 
-	p = anchor->first;
-	if (p == NULL)
-		return;
-
-	for (i=1; i <= USABLE_PARTITIONS; i++) {
-		if (p == NULL)
-			return;
-		q = p->next;
-		free(p->f1);
-		free(p);
-		p = q;
+	part_info = anchor->first;
+	for (i = 1; i <= USABLE_PARTITIONS && part_info != NULL; i++) {
+		next = part_info->next;
+		free(part_info->f1);
+		free(part_info);
+		part_info = next;
 	}
 }
 
@@ -189,6 +187,9 @@ fdasd_error (fdasd_anchor_t *anc, enum fdasd_failure why, char const *str)
 			sprintf(error, "fdasd: %s -- %s\n",
 				_("Device verification failed"),
 				_("The specified device is not a valid DASD device"));
+			break;
+		case volser_not_found:
+			sprintf(error, "fdasd: %s -- %s\n", _("VOLSER not found on device"), str);
 			break;
 		default:
 			sprintf(error, "fdasd: %s: %s\n", _("Fatal error"), str);
@@ -287,7 +288,7 @@ fdasd_write_vtoc_labels (fdasd_anchor_t * anc, int fd)
 	PDEBUG
 	partition_info_t *p;
 	unsigned long b, maxblk;
-	char dsno[6], s1[7], s2[45], *c1, *c2, *ch;
+	char dsno[6], s1[VOLSER_LENGTH + 1], s2[45], *c1, *c2, *ch;
 	int i = 0, k = 0;
 	cchhb_t f9addr;
 	format1_label_t emptyf1;
@@ -519,7 +520,6 @@ fdasd_recreate_vtoc (fdasd_anchor_t *anc)
 	int i;
 
 	vtoc_init_format4_label(anc->f4,
-							USABLE_PARTITIONS,
 							anc->geo.cylinders,
 						anc->formatted_cylinders,
 							anc->geo.heads,
@@ -767,7 +767,7 @@ fdasd_invalid_vtoc_pointer(fdasd_anchor_t *anc)
 	anc->formatted_cylinders = anc->hw_cylinders;
 	anc->fspace_trk = anc->formatted_cylinders * anc->geo.heads
 			- FIRST_USABLE_TRK;
-	vtoc_init_format4_label(anc->f4, USABLE_PARTITIONS,
+	vtoc_init_format4_label(anc->f4,
 			anc->geo.cylinders, anc->formatted_cylinders,
 			anc->geo.heads, anc->geo.sectors,
 			anc->blksize, anc->dev_type);
@@ -781,6 +781,8 @@ fdasd_invalid_vtoc_pointer(fdasd_anchor_t *anc)
 			anc->formatted_cylinders, anc->geo.heads);
 
 	vtoc_set_cchhb(&anc->vlabel->vtoc, VTOC_START_CC, VTOC_START_HH, 0x01);
+	anc->vtoc_changed++;
+	anc->vlabel_changed++;
 }
 
 /*
@@ -792,7 +794,7 @@ fdasd_process_invalid_vtoc(fdasd_anchor_t *anc)
 	anc->formatted_cylinders = anc->hw_cylinders;
 	anc->fspace_trk = anc->formatted_cylinders * anc->geo.heads
 			- FIRST_USABLE_TRK;
-	vtoc_init_format4_label(anc->f4, USABLE_PARTITIONS,
+	vtoc_init_format4_label(anc->f4,
 			anc->geo.cylinders, anc->formatted_cylinders,
 			anc->geo.heads, anc->geo.sectors,
 			anc->blksize, anc->dev_type);
@@ -803,6 +805,8 @@ fdasd_process_invalid_vtoc(fdasd_anchor_t *anc)
 			FIRST_USABLE_TRK,
 			anc->formatted_cylinders * anc->geo.heads - 1,
 			anc->formatted_cylinders, anc->geo.heads);
+
+	anc->vtoc_changed++;
 }
 
 
@@ -875,7 +879,7 @@ fdasd_check_volume (fdasd_anchor_t *anc, int fd)
 
 		fdasd_init_volume_label(anc, fd);
 
-		vtoc_init_format4_label(anc->f4, USABLE_PARTITIONS,
+		vtoc_init_format4_label(anc->f4,
 				anc->geo.cylinders, anc->formatted_cylinders,
 				anc->geo.heads, anc->geo.sectors,
 				anc->blksize, anc->dev_type);
@@ -1021,13 +1025,20 @@ fdasd_get_geometry (const PedDevice *dev, fdasd_anchor_t *anc, int f)
 			goto error;
 		}
 
-		if (ioctl(f, HDIO_GETGEO, &anc->geo) != 0)
+		if (ioctl(f, HDIO_GETGEO, &anc->geo) != 0 ||
+		        anc->geo.heads == 0 ||
+		        anc->geo.sectors == 0 ||
+		        anc->geo.cylinders == 0 ) {
 			fdasd_error(anc, unable_to_ioctl,
 			    _("Could not retrieve disk geometry information."));
+			goto error;
+		}
 
-		if (ioctl(f, BLKSSZGET, &blksize) != 0)
+		if (ioctl(f, BLKSSZGET, &blksize) != 0) {
 			fdasd_error(anc, unable_to_ioctl,
 			    _("Could not retrieve blocksize information."));
+			goto error;
+		}
 
 		/* get disk type */
 		if (ioctl(f, BIODASDINFO, &dasd_info) != 0) {
@@ -1279,12 +1290,10 @@ fdasd_add_partition (fdasd_anchor_t *anc, unsigned int start,
 		return 0;
 
 	if (anc->formatted_cylinders > LV_COMPAT_CYL) {
-		vtoc_init_format8_label(anc->vlabel->volid, anc->blksize, &ext,
-					p->f1);
+		vtoc_init_format8_label(anc->blksize, &ext, p->f1);
 	} else {
 		PDEBUG;
-		vtoc_init_format1_label(anc->vlabel->volid, anc->blksize, &ext,
-					p->f1);
+		vtoc_init_format1_label(anc->blksize, &ext, p->f1);
 	}
 
 	PDEBUG;
@@ -1309,6 +1318,129 @@ fdasd_add_partition (fdasd_anchor_t *anc, unsigned int start,
 
 	PDEBUG;
 	return p;
+}
+
+/*
+ * Check for valid volume serial characters (max. 6) - remove invalid.
+ * If volser is empty, fill with default volser.
+ */
+void fdasd_check_volser (char *volser, int devno)
+{
+	int from, to;
+
+	for (from = 0, to = 0; volser[from] && from < VOLSER_LENGTH; from++) {
+
+			if ((volser[from] >= 0x23 &&
+			     volser[from] <= 0x25) ||
+			    (volser[from] >= 0x30 &&
+			     volser[from] <= 0x39) ||
+			    (volser[from] >= 0x40 &&
+			     volser[from] <= 0x5a) ||
+			    (volser[from] >= 0x61 &&
+			     volser[from] <= 0x7a))
+				volser[to++] = toupper(volser[from]);
+	}
+
+	volser[to] = 0x00;
+
+	if (volser[0] == 0x00)
+		sprintf(volser, "0X%04x", devno);
+}
+
+/*
+ * get volser from vtoc
+ */
+int fdasd_get_volser (fdasd_anchor_t *anc, char *volser, int fd)
+{
+	volume_label_t vlabel;
+
+	vtoc_read_volume_label(fd, anc->label_pos, &vlabel);
+	vtoc_volume_label_get_volser(&vlabel, volser);
+	return 0;
+}
+
+/* Changes the volume serial (menu option)
+ *
+ */
+void fdasd_change_volser (fdasd_anchor_t *anc, char *str)
+{
+	fdasd_check_volser(str, anc->devno);
+	vtoc_volume_label_set_volser(anc->vlabel, str);
+
+	vtoc_set_cchhb(&anc->vlabel->vtoc, VTOC_START_CC, VTOC_START_HH, 0x01);
+	anc->vlabel_changed++;
+	anc->vtoc_changed++;
+}
+
+/*
+ * re-create all VTOC labels, but use the partition information
+ * from existing VTOC
+ */
+void fdasd_reuse_vtoc (fdasd_anchor_t *anc)
+{
+	partition_info_t *part_info = anc->first;
+	struct fdasd_hd_geometry geo = anc->geo;
+	format1_label_t f1;
+	format4_label_t f4;
+	format5_label_t f5;
+	format7_label_t f7;
+
+	vtoc_init_format4_label(&f4, geo.cylinders, anc->formatted_cylinders,
+				geo.heads, geo.sectors,
+				anc->blksize, anc->dev_type);
+
+	/* reuse some FMT4 values */
+	f4.DS4HPCHR = anc->f4->DS4HPCHR;
+	f4.DS4DSREC = anc->f4->DS4DSREC;
+
+	/* re-initialize both free-space labels */
+	vtoc_init_format5_label(&f5);
+	vtoc_init_format7_label(&f7);
+
+	if (anc->fspace_trk > 0)
+		vtoc_set_freespace(&f4, &f5, &f7, '+', anc->verbose,
+				   FIRST_USABLE_TRK,
+				   FIRST_USABLE_TRK + anc->fspace_trk - 1,
+				   anc->formatted_cylinders, geo.heads);
+
+	while (part_info != NULL) {
+		if (part_info->used != 0x01) {
+			part_info = part_info->next;
+			continue;
+		}
+
+		if (anc->formatted_cylinders > LV_COMPAT_CYL)
+			vtoc_init_format8_label(anc->blksize,
+						&part_info->f1->DS1EXT1, &f1);
+		else
+			vtoc_init_format1_label(anc->blksize,
+						&part_info->f1->DS1EXT1, &f1);
+
+
+		strncpy(f1.DS1DSNAM, part_info->f1->DS1DSNAM, 44);
+		strncpy((char *)f1.DS1DSSN, (char *)part_info->f1->DS1DSSN, 6);
+		f1.DS1CREDT = part_info->f1->DS1CREDT;
+
+		memcpy(part_info->f1, &f1, sizeof(format1_label_t));
+
+		if (part_info->fspace_trk > 0)
+			vtoc_set_freespace(&f4, &f5, &f7, '+', anc->verbose,
+					   part_info->end_trk + 1,
+					   part_info->end_trk +
+					   part_info->fspace_trk,
+					   anc->formatted_cylinders, geo.heads);
+
+		part_info = part_info->next;
+	}
+
+	/* over-write old labels with new ones */
+	memcpy(anc->f4, &f4, sizeof(format4_label_t));
+	memcpy(anc->f5, &f5, sizeof(format5_label_t));
+	memcpy(anc->f7, &f7, sizeof(format7_label_t));
+
+	anc->vtoc_changed++;
+
+	return;
 }
 
 /* vim:set tabstop=4 shiftwidth=4 softtabstop=4: */

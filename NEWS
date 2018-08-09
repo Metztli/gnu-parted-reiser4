@@ -1,8 +1,31 @@
 GNU parted NEWS                                    -*- outline -*-
 
+  Parted now recognizes NVMe devices, NVDIMM, and RAM drives.
+
 * Noteworthy changes in release ?.? (????-??-??) [?]
 
 ** Bug Fixes
+
+  Fix atari disklabel false positives by probing other labels first.
+
+  Fix resizepart to adjust the end to be -1 sector when using iec
+  power of 2 units so that the next partition can start immediately
+  following the new end, just like mkpart does.
+
+  Fix set and disk_set to not crash when there are no flags to set.
+
+  Fix a udev cookie leak when using resizepart on device-mapper devices.
+
+  Fix a gettext crash/error sometimes when using localized languages.
+
+  Fix fat resize to preverve boot code, and thus not render the
+  filesystem unreconized by Windows.
+
+  Fix rescue command: the rescue command often failed to find
+  filesystems due to leaving on cylinder alignment.
+
+  libparted-fs-resize: Prevent crash resizing FAT file systems with very
+  deep directories with path names over 512 bytes long.
 
   Use 512b sector size when communicating with device-mapper. Fixes
   problems with partitions being created too small on dm devices
@@ -12,10 +35,19 @@ GNU parted NEWS                                    -*- outline -*-
 
   libparted-fs-resize: Prevent crash resizing FAT16 file systems.
 
+  libparted-fs-resize: Prevent crash resizing FAT16 file systems.
+
+  If the user specifies start/end of the partition as cylinders
+  and a cylinder has a size which is power of 2, then such address
+  does not trigger exact placement.
+
+  mkpart: Allow negative start value when FS-TYPE is not given
 
 * Noteworthy changes in release 3.2 (2014-07-28) [stable]
 
 ** New Features
+
+  libparted-fs-resize: Work on non 512 byte sectors.
 
   Add resizepart command to resize a partition.  This works even on
   mounted partitions.

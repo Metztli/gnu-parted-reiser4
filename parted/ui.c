@@ -29,6 +29,8 @@
 #include <unistd.h>
 #include <setjmp.h>
 #include <assert.h>
+#include <limits.h>
+#include <errno.h>
 
 #include "command.h"
 #include "strlist.h"
@@ -909,16 +911,30 @@ command_line_get_integer (const char* prompt, int* value)
 {
         char     def_str [10];
         char*    input;
-        int      valid;
+        long     ret;
 
         snprintf (def_str, 10, "%d", *value);
         input = command_line_get_word (prompt, *value ? def_str : NULL,
                                        NULL, 1);
         if (!input)
                 return 0;
-        valid = sscanf (input, "%d", value);
+
+        errno = 0;
+        ret = strtol (input, (char**) NULL, 10);
+        if (errno)
+                goto error;
+
+        if ((ret > INT_MAX) || (ret < INT_MIN))
+                goto error;
+        else
+                *value = (int) ret;
+
         free (input);
-        return valid;
+        return 1;
+
+error:
+        free (input);
+        return 0;
 }
 
 int
@@ -1029,6 +1045,7 @@ command_line_get_partition (const char* prompt, PedDisk* disk,
                             PedPartition** value)
 {
         PedPartition*    part;
+        int ret;
 
         /* Flawed logic, doesn't seem to work?!
         check = ped_disk_next_partition (disk, part);
@@ -1045,7 +1062,8 @@ command_line_get_partition (const char* prompt, PedDisk* disk,
         */
         int num = (*value) ? (*value)->num : 0;
 
-        if (!command_line_get_integer (prompt, &num)) {
+        ret = command_line_get_integer (prompt, &num);
+        if ((!ret) || (num < 0)) {
                 ped_exception_throw (PED_EXCEPTION_ERROR,
                                      PED_EXCEPTION_CANCEL,
                                      _("Expecting a partition number."));
@@ -1132,7 +1150,14 @@ command_line_get_disk_flag (const char* prompt, const PedDisk* disk,
                         opts = str_list_append_unique (opts, _(walk_name));
                 }
         }
-
+        if (opts == NULL)
+        {
+                ped_exception_throw (PED_EXCEPTION_ERROR,
+                                     PED_EXCEPTION_OK,
+                                     _("No flags supported"));
+        
+                return 0;
+        }
         flag_name = command_line_get_word (prompt, NULL, opts, 1);
         str_list_destroy (opts);
 
@@ -1161,7 +1186,14 @@ command_line_get_part_flag (const char* prompt, const PedPartition* part,
                         opts = str_list_append_unique (opts, _(walk_name));
                 }
         }
-
+        if (opts == NULL)
+        {
+                ped_exception_throw (PED_EXCEPTION_ERROR,
+                                     PED_EXCEPTION_OK,
+                                     _("No flags supported"));
+        
+                return 0;
+        }
         flag_name = command_line_get_word (prompt, NULL, opts, 1);
         str_list_destroy (opts);
 
@@ -1270,6 +1302,7 @@ command_line_get_ex_opt (const char* prompt, PedExceptionOption options)
         PedExceptionOption    opt;
         char*                 opt_name;
 
+        command_line_flush ();
         for (opt = option_get_next (options, 0); opt;
              opt = option_get_next (options, opt)) {
                 options_strlist = str_list_append_unique (options_strlist,
@@ -1594,8 +1627,14 @@ interactive_mode (PedDevice** dev, PedDisk** disk, Command* cmd_list[])
                         cmd = command_get (commands, word);
                         free (word);
                         if (cmd) {
-                                if (!command_run (cmd, dev, disk))
+                                if (!command_run (cmd, dev, disk)) {
                                         command_line_flush ();
+
+                                        if (*disk) {
+                                                ped_disk_destroy (*disk);
+                                                *disk = 0;
+                                        }
+                                }
                         } else
                                 print_commands_help ();
                 }

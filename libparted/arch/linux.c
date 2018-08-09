@@ -41,6 +41,7 @@
 #include <sys/utsname.h>        /* for uname() */
 #include <scsi/scsi.h>
 #include <assert.h>
+#include <sys/sysmacros.h>
 #ifdef ENABLE_DEVICE_MAPPER
 #include <libdevmapper.h>
 #endif
@@ -278,6 +279,8 @@ struct blkdev_ioctl_param {
 #define SDMMC_MAJOR             179
 #define LOOP_MAJOR              7
 #define MD_MAJOR                9
+#define BLKEXT_MAJOR            259
+#define RAM_MAJOR               1
 
 #define SCSI_BLK_MAJOR(M) (                                             \
                 (M) == SCSI_DISK0_MAJOR                                 \
@@ -439,6 +442,12 @@ static int
 _is_virtblk_major (int major)
 {
         return _major_type_in_devices (major, "virtblk");
+}
+
+static int
+_is_blkext_major (int major)
+{
+        return _major_type_in_devices (major, "blkext");
 }
 
 #ifdef ENABLE_DEVICE_MAPPER
@@ -692,6 +701,12 @@ _device_probe_type (PedDevice* dev)
                 dev->type = PED_DEVICE_LOOP;
         } else if (dev_major == MD_MAJOR) {
                 dev->type = PED_DEVICE_MD;
+        } else if (_is_blkext_major(dev_major) && dev->path && strstr(dev->path, "nvme")) {
+                dev->type = PED_DEVICE_NVME;
+        } else if (dev_major == RAM_MAJOR) {
+                dev->type = PED_DEVICE_RAM;
+        } else if (_is_blkext_major(dev_major) && dev->path && strstr(dev->path, "pmem")) {
+                dev->type = PED_DEVICE_PMEM;
         } else {
                 dev->type = PED_DEVICE_UNKNOWN;
         }
@@ -852,6 +867,7 @@ _device_probe_geometry (PedDevice* dev)
         LinuxSpecific*          arch_specific = LINUX_SPECIFIC (dev);
         struct stat             dev_stat;
         struct hd_geometry      geometry;
+        int                     sector_size = 0;
 
         if (!_device_stat (dev, &dev_stat))
                 return 0;
@@ -863,26 +879,35 @@ _device_probe_geometry (PedDevice* dev)
         if (!dev->length)
                 return 0;
 
-        /* The GETGEO ioctl is no longer useful (as of linux 2.6.x).  We could
-         * still use it in 2.4.x, but this is contentious.  Perhaps we should
-         * move to EDD. */
-        dev->bios_geom.sectors = 63;
-        dev->bios_geom.heads = 255;
-        dev->bios_geom.cylinders
-                = dev->length / (63 * 255);
+        /* initialize the bios_geom values to something */
+        dev->bios_geom.sectors = 0;
+        dev->bios_geom.heads = 0;
+        dev->bios_geom.cylinders = 0;
 
-        /* FIXME: what should we put here?  (TODO: discuss on linux-kernel) */
-        if (!ioctl (arch_specific->fd, HDIO_GETGEO, &geometry)
+        if (!ioctl (arch_specific->fd, BLKSSZGET, &sector_size)) {
+                /* get the sector count first */
+                dev->bios_geom.sectors = 1 + (sector_size / PED_SECTOR_SIZE_DEFAULT);
+                dev->bios_geom.heads = 255;
+        } else if (!ioctl (arch_specific->fd, HDIO_GETGEO, &geometry)
                         && geometry.sectors && geometry.heads) {
-                dev->hw_geom.sectors = geometry.sectors;
-                dev->hw_geom.heads = geometry.heads;
-                dev->hw_geom.cylinders
-                        = dev->length / (dev->hw_geom.heads
-                                         * dev->hw_geom.sectors);
+                /* if BLKSSZGET failed, try the deprecated HDIO_GETGEO */
+                dev->bios_geom.sectors = geometry.sectors;
+                dev->bios_geom.heads = geometry.heads;
         } else {
-                dev->hw_geom = dev->bios_geom;
+                ped_exception_throw (
+                        PED_EXCEPTION_WARNING,
+                        PED_EXCEPTION_OK,
+                        _("Could not determine sector size for %s: %s.\n"
+                          "Using the default sector size (%lld)."),
+                        dev->path, strerror (errno), PED_SECTOR_SIZE_DEFAULT);
+                dev->bios_geom.sectors = 2;
+                dev->bios_geom.heads = 255;
         }
 
+        dev->bios_geom.cylinders
+                = dev->length / (dev->bios_geom.heads
+                                 * dev->bios_geom.sectors);
+        dev->hw_geom = dev->bios_geom;
         return 1;
 }
 
@@ -912,6 +937,7 @@ init_ide (PedDevice* dev)
         PedExceptionOption      ex_status;
         char                    hdi_buf[41];
         int                     sector_multiplier = 0;
+        int                     r;
 
         if (!_device_stat (dev, &dev_stat))
                 goto error;
@@ -919,7 +945,11 @@ init_ide (PedDevice* dev)
         if (!_device_open_ro (dev))
                 goto error;
 
-        if (ioctl (arch_specific->fd, HDIO_GET_IDENTITY, &hdi)) {
+        r = ioctl (arch_specific->fd, HDIO_GET_IDENTITY, &hdi);
+        if (r && errno == EINVAL) {
+                /* silently ignore unsupported ioctl */
+                dev->model = strdup(_("Generic IDE"));
+        } else if (r) {
                 ex_status = ped_exception_throw (
                                 PED_EXCEPTION_WARNING,
                                 PED_EXCEPTION_IGNORE_CANCEL,
@@ -1455,6 +1485,16 @@ linux_new (const char* path)
                         goto error_free_arch_specific;
                 break;
 
+        case PED_DEVICE_NVME:
+                if (!init_generic (dev, _("NVMe Device")))
+                        goto error_free_arch_specific;
+                break;
+
+        case PED_DEVICE_PMEM:
+                if (!init_generic (dev, _("NVDIMM Device")))
+                        goto error_free_arch_specific;
+                break;
+
         case PED_DEVICE_ATARAID:
                 if (!init_generic (dev, _("ATARAID Controller")))
                         goto error_free_arch_specific;
@@ -1515,6 +1555,11 @@ linux_new (const char* path)
 
         case PED_DEVICE_MD:
                 if (!init_generic(dev, _("Linux Software RAID Array")))
+                        goto error_free_arch_specific;
+                break;
+
+        case PED_DEVICE_RAM:
+                if (!init_generic (dev, _("RAM Drive")))
                         goto error_free_arch_specific;
                 break;
 
@@ -1590,9 +1635,9 @@ _flush_cache (PedDevice* dev)
 {
         LinuxSpecific*  arch_specific = LINUX_SPECIFIC (dev);
         int             i;
-	int             lpn = _device_get_partition_range(dev);
+        int             lpn = _device_get_partition_range(dev);
 
-        if (dev->read_only)
+        if (dev->read_only || dev->type == PED_DEVICE_RAM)
                 return;
         dev->dirty = 0;
 
@@ -2906,6 +2951,7 @@ _dm_resize_partition (PedDisk* disk, const PedPartition* part)
         char*           vol_name = NULL;
         const char*     dev_name = NULL;
         uint32_t        cookie = 0;
+        int             rc = 0;
 
         /* Get map name from devicemapper */
         struct dm_task *task = dm_task_create (DM_DEVICE_INFO);
@@ -2946,8 +2992,9 @@ _dm_resize_partition (PedDisk* disk, const PedPartition* part)
         /* device-mapper uses 512b units, not the device's sector size */
         dm_task_add_target (task, 0, part->geom.length * (disk->dev->sector_size / PED_SECTOR_SIZE_DEFAULT),
                 "linear", params);
-        if (!dm_task_set_cookie (task, &cookie, 0))
-                goto err;
+        /* NOTE: DM_DEVICE_RELOAD doesn't generate udev events, so no cookie is needed (it will freeze).
+         *       DM_DEVICE_RESUME does, so get a cookie and synchronize with udev.
+         */
         if (dm_task_run (task)) {
                 dm_task_destroy (task);
                 task = dm_task_create (DM_DEVICE_RESUME);
@@ -2956,10 +3003,8 @@ _dm_resize_partition (PedDisk* disk, const PedPartition* part)
                 dm_task_set_name (task, vol_name);
                 if (!dm_task_set_cookie (task, &cookie, 0))
                         goto err;
-                if (dm_task_run (task)) {
-                        free (params);
-                        free (vol_name);
-                        return 1;
+                if (_dm_task_run_wait (task, cookie)) {
+                        rc = 1;
                 }
         }
 err:
@@ -2968,7 +3013,7 @@ err:
                 dm_task_destroy (task);
         free (params);
         free (vol_name);
-        return 0;
+        return rc;
 }
 
 #endif

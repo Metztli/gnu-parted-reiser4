@@ -330,13 +330,12 @@ dasd_read (PedDisk* disk)
 		DasdPartitionData* dasd_data;
 
 		union vollabel {
-			volume_label_t unused;
-			ldl_volume_label_t ldl;
+			volume_label_t ldl;
 			cms_volume_label_t cms;
 		};
 		union vollabel *cms_ptr1 = (union vollabel *) anchor.vlabel;
 		cms_volume_label_t *cms_ptr = &cms_ptr1->cms;
-		ldl_volume_label_t *ldl_ptr = &cms_ptr1->ldl;
+		volume_label_t *ldl_ptr = &cms_ptr1->ldl;
 		int partition_start_block;
 
 		disk_specific->format_type = 1;
@@ -360,8 +359,7 @@ dasd_read (PedDisk* disk)
 				* (long long) cms_ptr->disk_offset;
 
 		if (is_ldl)
-		   if (strncmp(ldl_ptr->ldl_version,
-			       vtoc_ebcdic_enc("2", str, 1), 1) >= 0)
+		   if (ldl_ptr->ldl_version >= 0xf2)
 		      end = (long long) arch_specific->real_sector_size
 			    / (long long) disk->dev->sector_size
 			    * (long long) ldl_ptr->formatted_blocks - 1;
@@ -621,8 +619,12 @@ dasd_write (const PedDisk* disk)
 	PDEBUG;
 
 	/* If not formated in CDL, don't write anything. */
-	if (disk_specific->format_type == 1)
+	if (disk_specific->format_type == 1) {
+		ped_exception_throw (PED_EXCEPTION_ERROR,
+				     PED_EXCEPTION_CANCEL,
+				     _("The partition table of DASD-LDL device cannot be changed.\n"));
 		return 1;
+	}
 
 	/* initialize the anchor */
 	fdasd_initialize_anchor(&anchor);
@@ -775,10 +777,24 @@ dasd_partition_get_flag (const PedPartition* part, PedPartitionFlag flag)
 	}
 }
 
+/*
+ * The DASD-LDL does not support flags now.
+ * So just return 0.
+*/
 static int
 dasd_partition_is_flag_available (const PedPartition* part,
                                   PedPartitionFlag flag)
 {
+	DasdDiskSpecific* disk_specific;
+	PED_ASSERT (part != NULL);
+	PED_ASSERT (part->disk != NULL);
+	PED_ASSERT (part->disk->disk_specific != NULL);
+
+	disk_specific = part->disk->disk_specific;
+
+	if (disk_specific->format_type == 1)
+		return 0;
+
 	switch (flag) {
 		case PED_PARTITION_RAID:
 			return 1;
@@ -829,6 +845,7 @@ _primary_constraint (PedDisk* disk)
 	PedSector sector_size;
 	LinuxSpecific* arch_specific;
 	DasdDiskSpecific* disk_specific;
+	PedSector start;
 
 	PDEBUG;
 
@@ -842,7 +859,12 @@ _primary_constraint (PedDisk* disk)
 	if (!ped_alignment_init (&end_align, -1,
 						     disk->dev->hw_geom.sectors * sector_size))
 		return NULL;
-	if (!ped_geometry_init (&max_geom, disk->dev, 0, disk->dev->length))
+
+	start = (FIRST_USABLE_TRK * (long long) disk->dev->hw_geom.sectors
+			    * (long long) arch_specific->real_sector_size
+			    / (long long) disk->dev->sector_size);
+
+	if (!ped_geometry_init (&max_geom, disk->dev, start, disk->dev->length))
 		return NULL;
 
 	return ped_constraint_new(&start_align, &end_align, &max_geom,
@@ -948,7 +970,6 @@ dasd_alloc_metadata (PedDisk* disk)
 	PedPartition* part = NULL; /* initialize solely to placate gcc */
 	PedPartition* new_part2;
 	PedSector trailing_meta_start, trailing_meta_end;
-	struct fdasd_anchor anchor;
 
 	PED_ASSERT (disk != NULL);
 	PED_ASSERT (disk->dev != NULL);
@@ -998,10 +1019,7 @@ dasd_alloc_metadata (PedDisk* disk)
 	      backed up, then restored to a larger size disk, etc.
 	   */
 	   trailing_meta_start = part->geom.end + 1;
-	   fdasd_initialize_anchor(&anchor);
-	   fdasd_get_geometry(disk->dev, &anchor, arch_specific->fd);
 	   trailing_meta_end = (long long) disk->dev->length - 1;
-	   fdasd_cleanup(&anchor);
 	   if (trailing_meta_end >= trailing_meta_start) {
 		new_part2 = ped_partition_new (disk,PED_PARTITION_METADATA,
 		   NULL, trailing_meta_start, trailing_meta_end);

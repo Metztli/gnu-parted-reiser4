@@ -58,10 +58,10 @@ AM_SILENT_RULES([yes]) # make --enable-silent-rules the default.
 
 AC_CANONICAL_HOST
 case "$host_os" in
-	linux*) OS=linux ;;
+	linux*|uclinux*) OS=linux ;;
 	gnu*)	OS=gnu ;;
 	beos*)	OS=beos ;;
-	*)	AC_MSG_ERROR([Unknown or unsupported OS "$host_os".  Only "linux", "gnu" and "beos" are supported in this version of GNU Parted.]) ;;
+	*)	AC_MSG_ERROR([Unknown or unsupported OS "$host_os".  Only "linux", "uclinux", "gnu" and "beos" are supported in this version of GNU Parted.]) ;;
 esac
 AC_SUBST([OS])
 
@@ -103,20 +103,6 @@ if test "$enable_discover_only" = yes; then
 fi
 
 PARTED_LIBS=""
-AC_ARG_ENABLE([dynamic-loading],
-[  --enable-dynamic-loading  support dynamic fs libraries [default=yes]], ,
-	if test "$enable_discover_only" = yes; then
-		enable_dynamic_loading=no
-	else
-		enable_dynamic_loading=yes
-	fi
-)
-if test "$enable_discover_only" = yes \
- && test "$enable_dynamic_loading" = yes; then
-	AC_MSG_ERROR(
-[You can't use --enable-dynamic-loading and --disable-discover-only together]
-	)
-fi
 
 AC_ARG_ENABLE([debug],
 	[  --enable-debug          compile in assertions [default=yes]], ,
@@ -226,7 +212,7 @@ if test "$gl_gcc_warnings" = yes; then
   nw="$nw -Wpacked"
   nw="$nw -Wmissing-prototypes"
   nw="$nw -Wmissing-declarations"
-  nw="$nw -Wmissing-noreturn"
+  nw="$nw -Wsuggest-attribute=noreturn"
   # things I might fix soon:
   nw="$nw -Wfloat-equal"            # sort.c, seq.c
   nw="$nw -Wmissing-format-attribute" # copy.c
@@ -288,6 +274,8 @@ fi
 AC_PROG_LIBTOOL
 LT_INIT
 
+AM_ICONV
+
 AM_GNU_GETTEXT_VERSION([0.18])
 AM_GNU_GETTEXT([external])
 if test "$USE_INCLUDED_LIBINTL" = "yes"; then
@@ -300,23 +288,6 @@ Or install gettext.  GNU gettext is available from
 	http://ftp.gnu.org/gnu/gettext
 ])
 fi
-
-dnl Check for libdl, if we are doing dynamic loading
-DL_LIBS=""
-AC_SUBST([DYNAMIC_LOADING])
-DYNAMIC_LOADING=no
-if test "$enable_dynamic_loading" = yes; then
-	AC_CHECK_LIB([dl], [dlopen],
-		DL_LIBS="-ldl"
-		PARTED_LIBS="$PARTED_LIBS -ldl"
-		DYNAMIC_LOADING=yes
-		AC_DEFINE([DYNAMIC_LOADING], [1], [Lazy linking to fs libs]),
-		AC_MSG_ERROR(
-			[-ldl not found!  Try using --disable-dynamic-loading]
-		)
-	)
-fi
-AC_SUBST([DL_LIBS])
 
 dnl Check for libuuid
 UUID_LIBS=""
@@ -354,24 +325,6 @@ if test "$enable_selinux" = yes; then
 	SELINUX_LIBS="-lselinux -lsepol"
 fi
 AC_SUBST([SELINUX_LIBS])
-
-dnl Check for libreiserfs
-REISER_LIBS=""
-if test "$enable_dynamic_loading" = no && test "$enable_discover_only" = no; then
-	OLD_LIBS="$LIBS"
-	AC_CHECK_LIB([dal], [dal_equals],
-		LIBS="-ldal"
-		AC_CHECK_LIB([reiserfs], [reiserfs_fs_probe],
-			REISER_LIBS="-ldal -lreiserfs"
-			AC_DEFINE([HAVE_LIBREISERFS], [1], [Have libreiserfs])
-		)
-		AC_CHECK_LIB([reiserfs], [reiserfs_fs_check],
-			AC_DEFINE([HAVE_REISERFS_FS_CHECK], [1], [Have reiserfs_fs_check()])
-		)
-	)
-	LIBS="$OLD_LIBS"
-fi
-AC_SUBST([REISER_LIBS])
 
 dnl Check for termcap
 if test "$with_readline" = yes; then
@@ -613,6 +566,7 @@ libparted/labels/Makefile
 libparted/fs/Makefile
 libparted/tests/Makefile
 libparted.pc
+libparted-fs-resize.pc
 parted/Makefile
 partprobe/Makefile
 doc/Makefile

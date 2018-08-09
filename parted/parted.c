@@ -183,7 +183,8 @@ static TimerContext timer_context;
 static int _print_list ();
 static void _done (PedDevice* dev, PedDisk *diskp);
 static bool partition_align_check (PedDisk const *disk,
-                        PedPartition const *part, enum AlignmentType a_type);
+                        PedPartition const *part, enum AlignmentType a_type,
+                        char **align_err);
 
 static void
 _timer_handler (PedTimer* timer, void* context)
@@ -681,7 +682,7 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
 
         peek_word = command_line_peek_word ();
         if (part_type == PED_PARTITION_EXTENDED
-            || (peek_word && isdigit (peek_word[0]))) {
+            || (peek_word && (isdigit (peek_word[0]) || peek_word[0] == '-'))) {
                 fs_type = NULL;
         } else {
                 if (!command_line_get_fs_type (_("File system type?"),
@@ -741,7 +742,7 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
                 ped_constraint_destroy (constraint_any);
 
                 if (!added_ok)
-                        goto error_remove_part;
+                        goto error_destroy_simple_constraints;
 
                 if (!ped_geometry_test_sector_inside(range_start, part->geom.start) ||
                     !ped_geometry_test_sector_inside(range_end, part->geom.end)) {
@@ -783,21 +784,27 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
                         }
                 }
 
+                char *align_err = NULL;
                 if ((alignment == ALIGNMENT_OPTIMAL &&
-                     !partition_align_check(disk, part, PA_OPTIMUM)) ||
+                     !partition_align_check(disk, part, PA_OPTIMUM, &align_err)) ||
                     (alignment == ALIGNMENT_MINIMAL &&
-                     !partition_align_check(disk, part, PA_MINIMUM))) {
+                     !partition_align_check(disk, part, PA_MINIMUM, &align_err))) {
                         if (ped_exception_throw(
                                 PED_EXCEPTION_WARNING,
                                 (opt_script_mode
                                  ? PED_EXCEPTION_OK
                                  : PED_EXCEPTION_IGNORE_CANCEL),
                                 _("The resulting partition is not properly "
-                                  "aligned for best performance.")) ==
+                                  "aligned for best performance: %s"),
+                                align_err ? align_err : _("unknown (malloc failed)")) ==
                             PED_EXCEPTION_CANCEL) {
+                                if (align_err)
+                                    free(align_err);
                                 /* undo partition addition */
                                 goto error_remove_part;
                         }
+                    if (align_err)
+                        free(align_err);
                 }
         } else {
                 ped_exception_leave_all();
@@ -810,12 +817,12 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
         free (part_name);  /* avoid double-free upon failure */
         part_name = NULL;
         if (!ped_partition_set_system (part, fs_type))
-                goto error;
+                goto error_remove_part;
         if (ped_partition_is_flag_available (part, PED_PARTITION_LBA))
                 ped_partition_set_flag (part, PED_PARTITION_LBA, 1);
 
         if (!ped_disk_commit (disk))
-                goto error;
+                goto error_remove_part;
 
         /* clean up */
         if (range_start != NULL)
@@ -838,7 +845,8 @@ error_remove_part:
 error_destroy_simple_constraints:
         ped_partition_destroy (part);
 error:
-        free (part_name);
+        if (part_name)
+                free (part_name);
         if (range_start != NULL)
                 ped_geometry_destroy (range_start);
         if (range_end != NULL)
@@ -862,6 +870,13 @@ do_name (PedDevice** dev, PedDisk** diskp)
                 *diskp = ped_disk_new (*dev);
         if (!*diskp)
                 goto error;
+
+        if (!ped_disk_type_check_feature((*diskp)->type, PED_DISK_TYPE_PARTITION_NAME)) {
+                ped_exception_throw (PED_EXCEPTION_ERROR, PED_EXCEPTION_CANCEL,
+                                     _("%s disk labels do not support partition name."),
+				     (*diskp)->type->name);
+                goto error;
+        }
 
         if (!command_line_get_partition (_("Partition number?"), *diskp, &part))
                 goto error;
@@ -972,7 +987,8 @@ _print_disk_info (const PedDevice *dev, const PedDisk *diskp)
                                          "cpqarray", "file", "ataraid", "i2o",
                                          "ubd", "dasd", "viodasd", "sx8", "dm",
                                          "xvd", "sd/mmc", "virtblk", "aoe",
-                                         "md", "loopback"};
+                                         "md", "loopback", "nvme", "brd",
+                                         "pmem"};
 
         char* start = ped_unit_format (dev, 0);
         PedUnit default_unit = ped_unit_get_default ();
@@ -1269,7 +1285,7 @@ do_print (PedDevice** dev, PedDisk** diskp)
                         putchar (':');
 
                     if (has_name)
-                        printf ("%s:", _(ped_partition_get_name (part)));
+                        printf ("%s:", ped_partition_get_name (part));
                     else
                         putchar (':');
 
@@ -1382,8 +1398,12 @@ _rescue_add_partition (PedPartition* part)
                 default: break;
         }
 
-        ped_partition_set_system (part, fs_type);
-        ped_disk_commit (part->disk);
+        if (!ped_partition_set_system (part, fs_type))
+                return 0;
+
+        if (!ped_disk_commit (part->disk))
+                return 0;
+
         return 1;
 }
 
@@ -1472,6 +1492,10 @@ do_rescue (PedDevice** dev, PedDisk** diskp)
         disk = ped_disk_new (*dev);
         if (!disk)
                 goto error;
+        if (ped_disk_is_flag_available(disk, PED_DISK_CYLINDER_ALIGNMENT))
+                if (!ped_disk_set_flag(disk, PED_DISK_CYLINDER_ALIGNMENT,
+                                       0))
+                        goto error;
 
         if (!command_line_get_sector (_("Start?"), *dev, &start, NULL, NULL))
                 goto error_destroy_disk;
@@ -1543,8 +1567,11 @@ do_resizepart (PedDevice** dev, PedDisk** diskp)
 
         start = part->geom.start;
         end = oldend = part->geom.end;
-        if (!command_line_get_sector (_("End?"), *dev, &end, &range_end, NULL))
+        char *end_input;
+        if (!command_line_get_sector (_("End?"), *dev, &end, &range_end, &end_input))
                 goto error;
+        _adjust_end_if_iec(&start, &end, range_end, end_input);
+        free(end_input);
         /* Do not move start of the partition */
         constraint = constraint_from_start_end_fixed_start (*dev, start, range_end);
         if (!ped_disk_set_partition_geom (disk, part, constraint,
@@ -1589,8 +1616,10 @@ do_rm (PedDevice** dev, PedDisk** diskp)
         if (!_partition_warn_busy (part))
                 goto error;
 
-        ped_disk_delete_partition (*diskp, part);
-        ped_disk_commit (*diskp);
+        if (!ped_disk_delete_partition (*diskp, part))
+                goto error;
+        if (!ped_disk_commit (*diskp))
+                goto error;
 
         if ((*dev)->type != PED_DEVICE_FILE)
                 disk_is_modified = 1;
@@ -1625,10 +1654,18 @@ do_select (PedDevice** dev, PedDisk** diskp)
    offset and alignment requirements.  Also return true if there is
    insufficient kernel support to determine DISK's alignment requirements.
    Otherwise, return false.  A_TYPE selects whether to check for minimal
-   or optimal alignment requirements.  */
+   or optimal alignment requirements.
+
+   If align_err is not NULL a string describing why the check failed
+   will be allocated and returned. It is up to the caller to free this.
+   Pass NULL if no error description is needed.
+
+   If allocating the error string fails *align_err will be set to NULL, the
+   caller should always check for this.
+*/
 static bool
 partition_align_check (PedDisk const *disk, PedPartition const *part,
-		       enum AlignmentType a_type)
+		       enum AlignmentType a_type, char **align_err)
 {
   PED_ASSERT (part->disk == disk);
   PedDevice const *dev = disk->dev;
@@ -1637,10 +1674,20 @@ partition_align_check (PedDisk const *disk, PedPartition const *part,
 		      ? ped_device_get_minimum_alignment (dev)
 		      : ped_device_get_optimum_alignment (dev));
   if (pa == NULL)
-    return true;
+      return true;
 
   PED_ASSERT (pa->grain_size != 0);
   bool ok = (part->geom.start % pa->grain_size == pa->offset);
+
+  /* If it isn't aligned and the caller wants an explanation,
+     show them the math.  */
+  if (!ok && align_err) {
+      if (asprintf(align_err,
+                   "%llds %% %llds != %llds",
+                   part->geom.start, pa->grain_size, pa->offset) < 0) {
+          *align_err = NULL;
+      }
+  }
   free (pa);
   return ok;
 }
@@ -1661,12 +1708,25 @@ do_align_check (PedDevice **dev, PedDisk** diskp)
   if (!command_line_get_partition (_("Partition number?"), *diskp, &part))
     goto error;
 
-  bool aligned = partition_align_check (*diskp, part, align_type);
-  if (!opt_script_mode)
-    printf(aligned ? _("%d aligned\n") : _("%d not aligned\n"), part->num);
+  char *align_err = NULL;
+  bool aligned = partition_align_check (*diskp, part, align_type, &align_err);
 
-  if (opt_script_mode)
-    return aligned ? 1 : 0;
+  /* Don't print the error in script mode */
+  if (opt_script_mode) {
+      if (align_err)
+          free(align_err);
+      return aligned ? 1 : 0;
+  }
+
+  if (aligned)
+      printf(_("%d aligned\n"), part->num);
+  else
+      printf(_("%d not aligned: %s\n"),
+             part->num,
+             align_err ? align_err : _("unknown (malloc failed)"));
+
+  if (align_err)
+      free(align_err);
 
   /* Always return 1 in interactive mode, to be consistent
      with the other modes.  */

@@ -464,7 +464,6 @@ bsd_partition_set_system (PedPartition* part, const PedFileSystemType* fs_type)
 static int
 bsd_partition_set_flag (PedPartition* part, PedPartitionFlag flag, int state)
 {
-//	PedPartition*		walk; // since -Werror, this unused variable would break build
 	BSDPartitionData*	bsd_data;
 
 	PED_ASSERT (part != NULL);
@@ -488,6 +487,7 @@ bsd_partition_set_flag (PedPartition* part, PedPartitionFlag flag, int state)
 				bsd_data->raid = 0;
 			}
 			bsd_data->lvm = state;
+			return 1;
 		default:
 			;
 	}

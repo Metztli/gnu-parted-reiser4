@@ -178,13 +178,6 @@ internationalisation support is desired.
 
 	@uref{ftp://ftp.gnu.org/gnu/gettext}
 
-@item libreiserfs, if you want reiserfs support:
-
-	@uref{http://reiserfs.osdn.org.ua}
-
-Note that parted will automatically detect libreiserfs at runtime, and enable
-reiserfs support.  libreiserfs is new, and hasn't been widely tested yet.
-
 @end itemize
 
 @node Supported Platforms
@@ -242,14 +235,6 @@ etc., where few libraries are available.
 @item --disable-debug
 don't include assertions
 
-@item --disable-dynamic-loading
-disables dynamic loading of some libraries (only libreiserfs for now,
-although we hope to expand this).  Dynamic loading is useful because it
-allows you to reuse libparted shared libraries even when you don't know
-if some libraries will be available.  It has a small overhead (mainly
-linking with libdl), so it may be useful to disable it on bootdisks if
-you don't need the flexibility.
-
 @item --disable-nls
 turns off native language support.  This is useful for use with old
 versions of glibc, or a trimmed down version of glibc suitable for
@@ -291,12 +276,38 @@ or you want to modify a root or boot partition, use GParted Live:
 @section Introduction to Partitioning
 @cindex partitioning overview
 
-Unfortunately, partitioning your disk is rather complicated.  This is
-because there are interactions between many different systems that need
-to be taken into consideration.
+Partitioning is the process of dividing a storage device into local
+sections, called partitions, which help organize multiple filesystems
+and their associated operating systems.
 
-This manual used to introduce the reader to these systems and their
-working.  This content has moved to the GNU Storage Guide.
+A storage device presents itself as a sequence of bytes, numbered
+starting from zero and increasing until the maximum capacity of the
+device is reached. Bytes are normally read and written a sector at a
+time, rather than individually. Each sector contains a fixed number
+of bytes, with the number determined by the device.
+
+@example
++------------------------------------------------------------+
+|            storage device with no partitions               |
++------------------------------------------------------------+
+0 start                                                    end
+@end example
+
+In order to store multiple filesystems, a storage device can be divided
+up in to multiple partitions. Each partition can be thought of as an
+area which contains a real filesystem inside of it. To show where these
+partitions are on the device a small table is written at the start,
+shown as PT in the diagram below. This table is called a partition
+table, or disklabel, and also stores the type of each partition and
+some flags.
+
+@example
++--+---------------+----------------+------------------------+
+|PT|  Partition 1  |  Partition 2   |  Partition 3           |
++--+---------------+----------------+------------------------+
+0 start                                                    end
+@end example
+
 
 @node Running Parted
 @section Using GNU Parted
@@ -550,7 +561,7 @@ PCs.
 @cindex mkpart, command description
 @cindex command description, mkpart
 
-@deffn Command mkpart [@var{part-type} @var{fs-type} @var{name}] @var{start} @var{end}
+@deffn Command mkpart [@var{part-type} @var{name} @var{fs-type}] @var{start} @var{end}
 
 Creates a new partition, @emph{without} creating a new file system on
 that partition.  This is useful for creating partitions for file systems
@@ -628,7 +639,9 @@ $ @kbd{mkfs.vfat /dev/sdX2}
 @deffn Command name @var{number} @var{name}
 
 Sets the name for the partition @var{number} (GPT, Mac, MIPS and PC98 only).
-The name can be placed in quotes.
+The name can be placed in quotes. And depending on the shell may need to also
+be wrapped in single quotes so that the shell doesn't strip off the double
+quotes.
 
 Example:
 
