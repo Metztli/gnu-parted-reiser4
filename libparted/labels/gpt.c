@@ -1144,7 +1144,7 @@ _write_pmbr (PedDevice *dev, bool pmbr_boot)
   pmbr->Signature = PED_CPU_TO_LE16 (MSDOS_MBR_SIGNATURE);
   pmbr->PartitionRecord[0].OSType = EFI_PMBR_OSTYPE_EFI;
   pmbr->PartitionRecord[0].StartSector = 2;
-  pmbr->PartitionRecord[0].EndHead = 0xFE;
+  pmbr->PartitionRecord[0].EndHead = 0xFF;
   pmbr->PartitionRecord[0].EndSector = 0xFF;
   pmbr->PartitionRecord[0].EndTrack = 0xFF;
   pmbr->PartitionRecord[0].StartingLBA = PED_CPU_TO_LE32 (1);
@@ -1513,6 +1513,7 @@ gpt_partition_set_system (PedPartition *part,
   if (fs_type)
     {
       if (strncmp (fs_type->name, "fat", 3) == 0
+          || strcmp (fs_type->name, "udf") == 0
           || strcmp (fs_type->name, "ntfs") == 0)
         {
           gpt_part_data->type = PARTITION_BASIC_DATA_GUID;

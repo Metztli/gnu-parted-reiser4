@@ -47,6 +47,7 @@ libfs_la_SOURCES =		\
   reiserfs/reiserfs.c		\
   reiserfs/reiserfs.h		\
   reiser4/reiser4.c		\
+  udf/udf.c			\
   ufs/ufs.c			\
   xfs/platform_defs.h		\
   xfs/xfs.c			\

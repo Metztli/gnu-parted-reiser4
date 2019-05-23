@@ -684,12 +684,13 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
         if (part_type == PED_PARTITION_EXTENDED
             || (peek_word && (isdigit (peek_word[0]) || peek_word[0] == '-'))) {
                 fs_type = NULL;
+                free (peek_word);
         } else {
+                free (peek_word);
                 if (!command_line_get_fs_type (_("File system type?"),
                                                &fs_type))
                         goto error;
         }
-        free (peek_word);
 
         if (!command_line_get_sector (_("Start?"), *dev, &start, &range_start, NULL))
                 goto error;
@@ -813,9 +814,11 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
 
         /* set minor attributes */
         if (part_name)
-                PED_ASSERT (ped_partition_set_name (part, part_name));
+            if (!ped_partition_set_name (part, part_name))
+                goto error_remove_part;
         free (part_name);  /* avoid double-free upon failure */
         part_name = NULL;
+
         if (!ped_partition_set_system (part, fs_type))
                 goto error_remove_part;
         if (ped_partition_is_flag_available (part, PED_PARTITION_LBA))
@@ -1100,6 +1103,7 @@ do_print (PedDevice** dev, PedDisk** diskp)
         if (has_devices_arg) {
                 char*           dev_name;
                 PedDevice*      current_dev = NULL;
+                int             status = 0;
 
                 ped_device_probe_all();
 
@@ -1115,14 +1119,11 @@ do_print (PedDevice** dev, PedDisk** diskp)
                 ped_device_free_all ();
 
                 *dev = ped_device_get (dev_name);
-                if (!*dev)
-		        return 0;
-                if (!ped_device_open (*dev))
-                        return 0;
-
+                if (*dev && ped_device_open (*dev))
+                    status = 1;
                 free (dev_name);
 
-                return 1;
+                return status;
         }
 
         else if (has_list_arg)
@@ -1974,7 +1975,7 @@ _init_commands ()
 		     do_align_check,
 		     str_list_create (
 				      _("align-check TYPE N"
-					"                        "
+					"                       "
 					"check partition N for"
 					" TYPE(min|opt) alignment"), NULL),
 

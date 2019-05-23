@@ -51,6 +51,7 @@ TESTS = \
   t2310-dos-extended-2-sector-min-offset.sh \
   t2320-dos-extended-noclobber.sh \
   t2400-dos-hfs-partition-type.sh \
+  t2410-dos-udf-partition-type.sh \
   t2500-probe-corrupt-hfs.sh \
   t3000-resize-fs.sh \
   t3200-resize-partition.sh \
@@ -65,6 +66,8 @@ TESTS = \
   t4100-msdos-starting-sector.sh \
   t4200-partprobe.sh \
   t4300-nilfs2-tiny.sh \
+  t4301-nilfs2-badsb2.sh \
+  t4302-nilfs2-lessbadsb2.sh \
   t5000-tags.sh \
   t6000-dm.sh \
   t6001-psep.sh \

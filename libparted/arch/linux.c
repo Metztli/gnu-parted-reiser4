@@ -961,6 +961,7 @@ init_ide (PedDevice* dev)
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_IGNORE:
                                 dev->model = strdup(_("Generic IDE"));
                                 break;
@@ -998,6 +999,7 @@ init_ide (PedDevice* dev)
 
                                 case PED_EXCEPTION_UNHANDLED:
                                         ped_exception_catch ();
+                                        /* FALLTHROUGH */
                                 case PED_EXCEPTION_IGNORE:
                                         break;
                                 default:
@@ -1347,6 +1349,7 @@ init_generic (PedDevice* dev, const char* model_name)
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_IGNORE:
                                 break;
                         default:
@@ -1400,6 +1403,22 @@ init_sdmmc (PedDevice* dev)
                           _("Generic SD/MMC Storage Card"));
         }
         return init_generic(dev, id);
+}
+
+static int
+init_nvme (PedDevice* dev)
+{
+        int ret;
+        char *model = read_device_sysfs_file (dev, "model");
+
+        if (!model)
+                ret = init_generic (dev, _("NVMe Device"));
+        else {
+                ret = init_generic (dev, model);
+                free (model);
+        }
+
+        return ret;
 }
 
 static PedDevice*
@@ -1486,7 +1505,7 @@ linux_new (const char* path)
                 break;
 
         case PED_DEVICE_NVME:
-                if (!init_generic (dev, _("NVMe Device")))
+                if (!init_nvme (dev))
                         goto error_free_arch_specific;
                 break;
 
@@ -1890,6 +1909,7 @@ linux_read (const PedDevice* dev, void* buffer, PedSector start,
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_CANCEL:
                                 return 0;
                         default:
@@ -1933,6 +1953,7 @@ linux_read (const PedDevice* dev, void* buffer, PedSector start,
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_CANCEL:
                                 free(diobuf);
                                 return 0;
@@ -2032,6 +2053,7 @@ linux_write (PedDevice* dev, const void* buffer, PedSector start,
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_CANCEL:
                                 return 0;
                         default:
@@ -2075,6 +2097,7 @@ linux_write (PedDevice* dev, const void* buffer, PedSector start,
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_CANCEL:
                                 free(diobuf_start);
                                 return 0;
@@ -2146,6 +2169,7 @@ _do_fsync (PedDevice* dev)
 
                         case PED_EXCEPTION_UNHANDLED:
                                 ped_exception_catch ();
+                                /* FALLTHROUGH */
                         case PED_EXCEPTION_CANCEL:
                                 return 0;
                         default:
@@ -2582,9 +2606,12 @@ _blkpg_add_partition (PedDisk* disk, const PedPartition *part)
                 linux_part.length = part->geom.length * disk->dev->sector_size;
         }
         linux_part.pno = part->num;
-        strncpy (linux_part.devname, dev_name, BLKPG_DEVNAMELTH);
-        if (vol_name)
-                strncpy (linux_part.volname, vol_name, BLKPG_VOLNAMELTH);
+        strncpy (linux_part.devname, dev_name, BLKPG_DEVNAMELTH-1);
+        linux_part.devname[BLKPG_DEVNAMELTH-1] = '\0';
+        if (vol_name) {
+                strncpy (linux_part.volname, vol_name, BLKPG_VOLNAMELTH-1);
+                linux_part.volname[BLKPG_VOLNAMELTH-1] = '\0';
+        }
 
         free (dev_name);
 
@@ -2640,7 +2667,8 @@ static int _blkpg_resize_partition (PedDisk* disk, const PedPartition *part)
         else
                 linux_part.length = part->geom.length * disk->dev->sector_size;
         linux_part.pno = part->num;
-        strncpy (linux_part.devname, dev_name, BLKPG_DEVNAMELTH);
+        strncpy (linux_part.devname, dev_name, BLKPG_DEVNAMELTH-1);
+        linux_part.devname[BLKPG_DEVNAMELTH-1] = '\0';
 
         free (dev_name);
 

@@ -113,6 +113,7 @@ extern void ped_file_system_ext2_init (void);
 extern void ped_file_system_reiser4_init (void);
 extern void ped_file_system_nilfs2_init (void);
 extern void ped_file_system_btrfs_init (void);
+extern void ped_file_system_udf_init (void);
 
 static void
 init_file_system_types ()
@@ -130,6 +131,7 @@ init_file_system_types ()
 	ped_file_system_reiser4_init ();
 	ped_file_system_nilfs2_init ();
 	ped_file_system_btrfs_init ();
+	ped_file_system_udf_init ();
 }
 
 extern void ped_disk_aix_done ();
@@ -196,6 +198,7 @@ extern void ped_file_system_xfs_done (void);
 extern void ped_file_system_reiser4_done (void);
 extern void ped_file_system_amiga_done (void);
 extern void ped_file_system_btrfs_done (void);
+extern void ped_file_system_udf_done (void);
 
 static void
 done_file_system_types ()
@@ -213,6 +216,7 @@ done_file_system_types ()
 	ped_file_system_reiser4_done ();
 	ped_file_system_amiga_done ();
 	ped_file_system_btrfs_done ();
+	ped_file_system_udf_done ();
 }
 
 static void _done() __attribute__ ((destructor));
