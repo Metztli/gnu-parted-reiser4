@@ -1,6 +1,6 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2005, 2007, 2009-2014 Free Software Foundation, Inc.
+    Copyright (C) 2005, 2007, 2009-2014, 2019 Free Software Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -66,7 +66,7 @@ typedef enum {
 
 extern long long ped_unit_get_size (const PedDevice* dev, PedUnit unit);
 extern const char *ped_unit_get_name (PedUnit unit)
-  _GL_ATTRIBUTE_PURE _GL_ATTRIBUTE_CONST;
+  _GL_ATTRIBUTE_CONST;
 extern PedUnit ped_unit_get_by_name (const char* unit_name) _GL_ATTRIBUTE_PURE;
 
 extern void ped_unit_set_default (PedUnit unit);

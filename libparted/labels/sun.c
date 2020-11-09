@@ -1,7 +1,8 @@
 /* -*- Mode: c; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 8 -*-
 
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2000-2001, 2005, 2007-2014 Free Software Foundation, Inc.
+    Copyright (C) 2000-2001, 2005, 2007-2014, 2019 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -68,7 +69,7 @@ struct __attribute__ ((packed)) _SunPartitionInfo {
 	u_int8_t	flags;		/* Partition flags */
 };
 
-struct __attribute__ ((packed)) _SunRawLabel {
+struct __attribute__ ((packed, aligned(2))) _SunRawLabel {
 	char 		info[128];	/* Informative text string */
 	u_int32_t	version;	/* Layout version */
 	u_int8_t	volume[8];	/* Volume name */

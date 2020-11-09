@@ -1,7 +1,7 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2001, 2004-2005, 2007-2014 Free Software Foundation,
-    Inc.
+    Copyright (C) 1999-2001, 2004-2005, 2007-2014, 2019 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -219,7 +219,7 @@ maybe_FAT (unsigned char const *s)
   if (! (s[0] == 0xeb || s[0] == 0xe9))
     return false;
 
-  unsigned int sector_size = PED_LE16_TO_CPU (*(uint16_t *) (s + 11));
+  uint16_t sector_size = (s[12] << 8) | s[11];
   switch (sector_size)
     {
     case 512:
@@ -1770,8 +1770,8 @@ _best_solution (const PedPartition* part, const PedCHSGeometry* bios_geom,
 		PedSector	a_delta;
 		PedSector	b_delta;
 
-		a_delta = abs (part->geom.start - a->start);
-		b_delta = abs (part->geom.start - b->start);
+		a_delta = llabs (part->geom.start - a->start);
+		b_delta = llabs (part->geom.start - b->start);
 
 		if (a_delta < b_delta)
 			goto choose_a;

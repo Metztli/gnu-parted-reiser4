@@ -1,6 +1,6 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2001, 2007-2014 Free Software Foundation, Inc.
+    Copyright (C) 1999-2001, 2007-2014, 2019 Free Software Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -211,7 +211,7 @@ _geometry_error (const PedGeometry* a, const PedGeometry* b)
 	PedSector	start_delta = a->start - b->start;
 	PedSector	end_delta = a->end - b->end;
 
-	return abs (start_delta) + abs (end_delta);
+	return llabs (start_delta) + llabs (end_delta);
 }
 
 static PedFileSystemType*

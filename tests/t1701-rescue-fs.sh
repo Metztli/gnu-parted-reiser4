@@ -1,7 +1,7 @@
 #!/bin/sh
 # rescue ext4 file system
 
-# Copyright (C) 2008-2014 Free Software Foundation, Inc.
+# Copyright (C) 2008-2014, 2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -49,5 +49,5 @@ EOF
 mv out o2 && sed -e "s,   *,,g;s, $,," \
                       -e "s,^.*/lt-parted: ,parted: ," o2 > out
 echo '' >> exp
-compare out exp || fail=1
+compare exp out || fail=1
 Exit $fail

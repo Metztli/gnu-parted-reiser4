@@ -1,7 +1,7 @@
 #!/bin/sh
 # verify that partition maxima-querying functions work
 
-# Copyright (C) 2009-2014 Free Software Foundation, Inc.
+# Copyright (C) 2009-2014, 2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@ max_n_partitions()
 # FIXME: add aix when/if it's supported again
 for t in msdos gpt dvh sun mac bsd amiga atari loop pc98; do
     echo $t
-    [ $t == 'atari' ] && [ $ss != 512 ] && continue
+    [ $t = 'atari' ] && [ $ss != 512 ] && continue
     rm -f $dev
     dd if=/dev/zero of=$dev bs=$ss count=1 seek=10000 || { fail=1; continue; }
     parted -s $dev mklabel $t || { fail=1; continue; }

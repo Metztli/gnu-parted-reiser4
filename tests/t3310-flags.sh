@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise partition flags.
 
-# Copyright (C) 2010-2014 Free Software Foundation, Inc.
+# Copyright (C) 2010-2014, 2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -116,7 +116,7 @@ done
 
 # loop filesystems support no flags.  Make sure this doesn't crash
 
-if [ $ss == 512 ]; then
+if [ $ss = 512 ]; then
    # only test on 512 byte ss since mke2fs assumes this on a file
    truncate -s 5m img || framework_failure
    mke2fs img || framework_failure

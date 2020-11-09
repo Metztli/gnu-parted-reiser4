@@ -1,6 +1,7 @@
 /*
     affs.c -- parted support for affs file systems
-    Copyright (C) 1998-2000, 2007, 2009-2014 Free Software Foundation, Inc.
+    Copyright (C) 1998-2000, 2007, 2009-2014, 2019 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -91,8 +92,6 @@ _generic_affs_probe (PedGeometry* geom, uint32_t kind)
 	len = geom->length / blocksize - reserved;
 	pos = (len - 1) / 2;
 	root = geom->start + (pos + reserved) * blocksize;
-	printf ("Pralloc = %d, Reserved = %d, blocksize = %d, root block at %llu\n",
-		prealloc, reserved, blocksize, root);
 
 	if (!ped_device_read (geom->dev, block, root, blocksize)) {
 		ped_exception_throw(PED_EXCEPTION_ERROR, PED_EXCEPTION_CANCEL,

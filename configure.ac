@@ -1,5 +1,5 @@
 dnl GNU Parted - a library and front end for manipulation hard disk partitions
-dnl Copyright (C) 1998-2002, 2005-2014 Free Software Foundation, Inc.
+dnl Copyright (C) 1998-2002, 2005-2014, 2019 Free Software Foundation, Inc.
 dnl
 dnl This file may be modified and/or distributed without restriction.
 
@@ -181,9 +181,6 @@ AC_ARG_ENABLE([gcc-warnings],
 )
 
 if test "$gl_gcc_warnings" = yes; then
-  gl_WARN_ADD([-Werror], [WERROR_CFLAGS])
-  AC_SUBST([WERROR_CFLAGS])
-
   nw=
   # This, $nw, is the list of warnings we disable.
   nw="$nw -Wdeclaration-after-statement" # too useful to forbid
@@ -234,6 +231,7 @@ if test "$gl_gcc_warnings" = yes; then
   gl_WARN_ADD([-Wno-unused-parameter]) # Too many warnings for now
   gl_WARN_ADD([-Wno-unused-macros]) # Too many warnings for now
   gl_WARN_ADD([-Wno-format-nonliteral])
+  gl_WARN_ADD([-Wabi=2])               # Avoid compile failure with GCC8
 
   # FIXME: investigate these
   gl_WARN_ADD([-Wno-jump-misses-init])
@@ -243,6 +241,9 @@ if test "$gl_gcc_warnings" = yes; then
   gl_WARN_ADD([-Wno-logical-op])
 
   gl_WARN_ADD([-fdiagnostics-show-option])
+
+  # Make sure it recognizes /* FALLTHROUGH */ comment
+  gl_WARN_ADD([-Wimplicit-fallthrough=3])
 
   AC_SUBST([WARN_CFLAGS])
 

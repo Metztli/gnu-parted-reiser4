@@ -1,6 +1,7 @@
  /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2003, 2005, 2007-2014 Free Software Foundation, Inc.
+    Copyright (C) 1999-2003, 2005, 2007-2014, 2019 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -615,7 +616,7 @@ ped_disk_check (const PedDisk* disk)
 		if (!geom)
 			continue;
 
-		length_error = abs (walk->geom.length - geom->length);
+		length_error = llabs (walk->geom.length - geom->length);
 		max_length_error = PED_MAX (4096, walk->geom.length / 100);
                 bool ok = (ped_geometry_test_inside (&walk->geom, geom)
                            && length_error <= max_length_error);
