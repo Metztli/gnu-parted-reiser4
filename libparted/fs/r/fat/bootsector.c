@@ -1,7 +1,7 @@
 /*
     libparted
-    Copyright (C) 1998-2000, 2002, 2004, 2007, 2009-2014, 2019 Free Software
-    Foundation, Inc.
+    Copyright (C) 1998-2000, 2002, 2004, 2007, 2009-2014, 2019-2021 Free
+    Software Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -85,7 +85,7 @@ fat_boot_sector_read (FatBootSector** bsp, const PedGeometry *geom)
 /*
     Don't trust the FAT12, FAT16 or FAT32 label string.
  */
-FatType
+FatType _GL_ATTRIBUTE_PURE
 fat_boot_sector_probe_type (const FatBootSector* bs, const PedGeometry* geom)
 {
 	PedSector	logical_sector_size;
@@ -271,8 +271,6 @@ fat_boot_sector_analyse (FatBootSector* bs, PedFileSystem* fs)
 int
 fat_boot_sector_set_boot_code (FatBootSector** bsp, const PedFileSystem* fs)
 {
-	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
-
 	PED_ASSERT (bsp != NULL);
 	*bsp = ped_malloc (fs->geom->dev->sector_size);
 	FatBootSector *bs = *bsp;
@@ -280,7 +278,8 @@ fat_boot_sector_set_boot_code (FatBootSector** bsp, const PedFileSystem* fs)
 
 	memset (bs, 0, 512);
 	memcpy (bs->boot_jump, FAT_BOOT_JUMP, 3);
-	memcpy (bs->u.fat32.boot_code, FAT_BOOT_CODE, FAT_BOOT_CODE_LENGTH);
+	PED_ASSERT (sizeof(FAT_BOOT_CODE) < sizeof(bs->u.fat32.boot_code));
+	strcpy (bs->u.fat32.boot_code, FAT_BOOT_CODE);
 	return 1;
 }
 

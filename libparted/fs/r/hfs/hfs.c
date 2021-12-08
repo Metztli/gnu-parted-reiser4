@@ -1,6 +1,6 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2000, 2003-2005, 2007, 2009-2014, 2019 Free Software
+    Copyright (C) 2000, 2003-2005, 2007, 2009-2014, 2019-2021 Free Software
     Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -58,26 +58,6 @@ static PedFileSystemType hfsplus_type;
 
 
 /* ----- HFS ----- */
-
-/* This is a very unundoable operation */
-/* Maybe I shouldn't touch the alternate MDB ? */
-/* Anyway clobber is call before other fs creation */
-/* So this is a non-issue */
-static int
-hfs_clobber (PedGeometry* geom)
-{
-	uint8_t	buf[PED_SECTOR_SIZE_DEFAULT];
-
-	memset (buf, 0, PED_SECTOR_SIZE_DEFAULT);
-
-	/* destroy boot blocks, mdb, alternate mdb ... */
-	return	(!!ped_geometry_write (geom, buf, 0, 1)) &
-		(!!ped_geometry_write (geom, buf, 1, 1)) &
-		(!!ped_geometry_write (geom, buf, 2, 1)) &
-		(!!ped_geometry_write (geom, buf, geom->length - 2, 1)) &
-		(!!ped_geometry_write (geom, buf, geom->length - 1, 1)) &
-		(!!ped_geometry_sync  (geom));
-}
 
 PedFileSystem *
 hfs_open (PedGeometry* geom)
@@ -338,42 +318,6 @@ hfs_resize (PedFileSystem* fs, PedGeometry* geom, PedTimer* timer)
 #include "advfs_plus.h"
 #include "reloc_plus.h"
 #include "journal.h"
-
-static int
-hfsplus_clobber (PedGeometry* geom)
-{
-	unsigned int i = 1;
-	uint8_t				buf[PED_SECTOR_SIZE_DEFAULT];
-	HfsMasterDirectoryBlock		*mdb;
-
-	mdb = (HfsMasterDirectoryBlock *) buf;
-
-	if (!ped_geometry_read (geom, buf, 2, 1))
-		return 0;
-
-	if (PED_BE16_TO_CPU (mdb->signature) == HFS_SIGNATURE) {
-		/* embedded hfs+ */
-		PedGeometry	*embedded;
-
-		i = PED_BE32_TO_CPU(mdb->block_size) / PED_SECTOR_SIZE_DEFAULT;
-		embedded = ped_geometry_new (
-		    geom->dev,
-		    (PedSector) geom->start
-		     + PED_BE16_TO_CPU (mdb->start_block)
-		     + (PedSector) PED_BE16_TO_CPU (
-			mdb->old_new.embedded.location.start_block ) * i,
-		    (PedSector) PED_BE16_TO_CPU (
-			mdb->old_new.embedded.location.block_count ) * i );
-		if (!embedded) i = 0;
-		else {
-			i = hfs_clobber (embedded);
-			ped_geometry_destroy (embedded);
-		}
-	}
-
-	/* non-embedded or envelop destroy as hfs */
-	return ( hfs_clobber (geom) && i );
-}
 
 int
 hfsplus_close (PedFileSystem *fs)
@@ -887,12 +831,11 @@ hfsplus_wrapper_update (PedFileSystem* fs)
 			ref.record_number = 1;
 		}
 
-		ref.record_pos =
-			PED_BE16_TO_CPU (*((uint16_t *)
-				(node + (PED_SECTOR_SIZE_DEFAULT
-				         - 2*ref.record_number))));
+		uint16_t value;
+		memcpy(&value, node+PED_SECTOR_SIZE_DEFAULT - (2*ref.record_number), sizeof(uint16_t));
+		ref.record_pos = PED_BE16_TO_CPU(value);
 		ret_key = (HfsExtentKey*) (node + ref.record_pos);
-		ret_data = (HfsExtDescriptor*) ( node + ref.record_pos
+		ret_data = (HfsExtDescriptor*) (node + ref.record_pos
 						 + sizeof (HfsExtentKey) );
 	}
 
@@ -1221,137 +1164,3 @@ hfsplus_extract (PedFileSystem* fs, PedTimer* timer)
 #endif /* HFS_EXTRACT_FS */
 
 #endif /* !DISCOVER_ONLY */
-
-#if 0
-static PedFileSystemOps hfs_ops = {
-	probe:		hfs_probe,
-#ifndef DISCOVER_ONLY
-	clobber:	hfs_clobber,
-	open:		hfs_open,
-	create:		NULL,
-	close:		hfs_close,
-#ifndef HFS_EXTRACT_FS
-	check:		NULL,
-#else
-	check:		hfs_extract,
-#endif
-	copy:		NULL,
-	resize:		hfs_resize,
-	get_create_constraint:	NULL,
-	get_resize_constraint:	hfs_get_resize_constraint,
-	get_copy_constraint:	NULL,
-#else /* DISCOVER_ONLY */
-	clobber:	NULL,
-	open:		NULL,
-	create:		NULL,
-	close:		NULL,
-	check:		NULL,
-	copy:		NULL,
-	resize:		NULL,
-	get_create_constraint:	NULL,
-	get_resize_constraint:	NULL,
-	get_copy_constraint:	NULL,
-#endif /* DISCOVER_ONLY */
-};
-
-static PedFileSystemOps hfsplus_ops = {
-	probe:		hfsplus_probe,
-#ifndef DISCOVER_ONLY
-	clobber:	hfsplus_clobber,
-	open:		hfsplus_open,
-	create:		NULL,
-	close:		hfsplus_close,
-#ifndef HFS_EXTRACT_FS
-	check:		NULL,
-#else
-	check:		hfsplus_extract,
-#endif
-	copy:		NULL,
-	resize:		hfsplus_resize,
-	get_create_constraint:	NULL,
-	get_resize_constraint:	hfsplus_get_resize_constraint,
-	get_copy_constraint:	NULL,
-#else /* DISCOVER_ONLY */
-	clobber:	NULL,
-	open:		NULL,
-	create:		NULL,
-	close:		NULL,
-	check:		NULL,
-	copy:		NULL,
-	resize:		NULL,
-	get_create_constraint:	NULL,
-	get_resize_constraint:	NULL,
-	get_copy_constraint:	NULL,
-#endif /* DISCOVER_ONLY */
-};
-
-static PedFileSystemOps hfsx_ops = {
-	probe:		hfsx_probe,
-#ifndef DISCOVER_ONLY
-	clobber:	hfs_clobber, /* NOT hfsplus_clobber !
-					HFSX can't be embedded */
-	open:		hfsplus_open,
-	create:		NULL,
-	close:		hfsplus_close,
-#ifndef HFS_EXTRACT_FS
-	check:		NULL,
-#else
-	check:		hfsplus_extract,
-#endif
-	copy:		NULL,
-	resize:		hfsplus_resize,
-	get_create_constraint:	NULL,
-	get_resize_constraint:	hfsplus_get_resize_constraint,
-	get_copy_constraint:	NULL,
-#else /* DISCOVER_ONLY */
-	clobber:	NULL,
-	open:		NULL,
-	create:		NULL,
-	close:		NULL,
-	check:		NULL,
-	copy:		NULL,
-	resize:		NULL,
-	get_create_constraint:	NULL,
-	get_resize_constraint:	NULL,
-	get_copy_constraint:	NULL,
-#endif /* DISCOVER_ONLY */
-};
-
-
-static PedFileSystemType hfs_type = {
-	next:	NULL,
-	ops:	&hfs_ops,
-	name:	"hfs",
-	block_sizes: HFS_BLOCK_SIZES
-};
-
-static PedFileSystemType hfsplus_type = {
-	next:	NULL,
-	ops:	&hfsplus_ops,
-	name:	"hfs+",
-	block_sizes: HFSP_BLOCK_SIZES
-};
-
-static PedFileSystemType hfsx_type = {
-	next:	NULL,
-	ops:	&hfsx_ops,
-	name:	"hfsx",
-	block_sizes: HFSX_BLOCK_SIZES
-};
-
-void
-ped_file_system_hfs_init ()
-{
-	ped_file_system_type_register (&hfs_type);
-	ped_file_system_type_register (&hfsplus_type);
-	ped_file_system_type_register (&hfsx_type);
-}
-
-void
-ped_file_system_hfs_done ()
-{
-	ped_file_system_type_unregister (&hfs_type);
-	ped_file_system_type_unregister (&hfsplus_type);
-	ped_file_system_type_unregister (&hfsx_type);
-}
-#endif

@@ -1,7 +1,7 @@
 /*
     libparted
-    Copyright (C) 1998-2000, 2007, 2009-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 1998-2000, 2007, 2009-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -124,7 +124,7 @@ fat_op_context_destroy (FatOpContext* ctx)
 	free (ctx);
 }
 
-FatFragment
+FatFragment _GL_ATTRIBUTE_PURE
 fat_op_context_map_static_fragment (const FatOpContext* ctx, FatFragment frag)
 {
 	FatSpecific*	new_fs_info = FAT_SPECIFIC (ctx->new_fs);
@@ -160,7 +160,7 @@ fat_op_context_map_static_cluster (const FatOpContext* ctx, FatCluster clst)
 		return 0;
 }
 
-FatFragment
+FatFragment _GL_ATTRIBUTE_PURE
 fat_op_context_map_fragment (const FatOpContext* ctx, FatFragment frag)
 {
 	return ctx->remap [frag];

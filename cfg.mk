@@ -1,5 +1,5 @@
 # Customize maint.mk                           -*- makefile -*-
-# Copyright (C) 2003-2014, 2019 Free Software Foundation, Inc.
+# Copyright (C) 2003-2014, 2019-2021 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ local-checks-to-skip = \
 export VERBOSE = yes
 
 # Hash of lines 42-208 for release 3.2
-old_NEWS_hash = 662c01eb5a757da59d219a79c06d6495
+old_NEWS_hash = 048e0facc662623870b9eea4e160c3ad
 
 include $(srcdir)/dist-check.mk
 
@@ -58,6 +58,10 @@ bootstrap-tools = autoconf,automake,gettext,gnulib,gperf
 update-copyright-env = \
   UPDATE_COPYRIGHT_USE_INTERVALS=1 \
   UPDATE_COPYRIGHT_MAX_LINE_LENGTH=79
+
+# Override submodule check to allow workaround for broken gnulib upstream
+submodule-checks = no-submodule-changes
+gl_public_submodule_commit=
 
 #==> .j/.x-sc_GPL_version <==
 #build-aux/vc-list-files

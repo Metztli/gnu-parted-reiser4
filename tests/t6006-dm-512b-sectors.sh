@@ -2,7 +2,7 @@
 # device-mapper sector sizes are 512b, make sure partitions are the correct
 # size when using larger sector sizes and a linear dm table.
 
-# Copyright (C) 2015, 2019 Free Software Foundation, Inc.
+# Copyright (C) 2015, 2019-2021 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,8 @@ require_scsi_debug_module_
 grep '^#define USE_BLKID 1' "$CONFIG_HEADER" > /dev/null ||
   skip_ 'this system lacks a new-enough libblkid'
 
-(dmsetup --help) > /dev/null 2>&1 || skip_test_ "No dmsetup installed"
+test "x$ENABLE_DEVICE_MAPPER" = xyes \
+  || skip_ "no device-mapper support"
 
 # Device maps names - should be random to not conflict with existing ones on
 # the system

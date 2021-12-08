@@ -1,7 +1,7 @@
 /*
     libparted
-    Copyright (C) 1998-2000, 2002, 2004, 2007, 2009-2014, 2019 Free Software
-    Foundation, Inc.
+    Copyright (C) 1998-2000, 2002, 2004, 2007, 2009-2014, 2019-2021 Free
+    Software Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -86,7 +86,7 @@ fat_boot_sector_read (FatBootSector** bsp, const PedGeometry *geom)
 /*
     Don't trust the FAT12, FAT16 or FAT32 label string.
  */
-FatType
+FatType _GL_ATTRIBUTE_PURE
 fat_boot_sector_probe_type (const FatBootSector* bs, const PedGeometry* geom)
 {
 	PedSector	logical_sector_size;

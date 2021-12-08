@@ -1,11 +1,12 @@
 # This file is part of GNU Parted
-# Copyright (C) 1999-2001, 2007, 2009-2014, 2019 Free Software Foundation, Inc.
+# Copyright (C) 1999-2001, 2007, 2009-2014, 2019-2021 Free Software Foundation,
+# Inc.
 #
 # This file may be modified and/or distributed without restriction.
 
 AUTOMAKE_OPTIONS = subdir-objects
 
-partedincludedir = -I$(top_builddir)/include -I$(top_srcdir)/include
+partedincludedir = -I$(top_builddir)/include -I$(top_srcdir)/include -I$(top_srcdir)/lib
 
 AM_CFLAGS = $(WARN_CFLAGS)
 
@@ -34,6 +35,8 @@ libfs_la_SOURCES =		\
   fat/count.h			\
   fat/fat.c			\
   fat/fat.h			\
+  f2fs/f2fs.c			\
+  f2fs/f2fs.h			\
   hfs/hfs.c			\
   hfs/hfs.h			\
   hfs/probe.c			\
@@ -65,7 +68,7 @@ EXTRA_DIST =			\
 # For details, see the "Updating library version information" section of
 # "info libtool".
 CURRENT = 0
-REVISION = 2
+REVISION = 3
 AGE = 0
 
 sym_file = $(srcdir)/fsresize.sym

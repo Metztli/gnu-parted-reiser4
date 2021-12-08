@@ -1,9 +1,10 @@
 dnl GNU Parted - a library and front end for manipulation hard disk partitions
-dnl Copyright (C) 1998-2002, 2005-2014, 2019 Free Software Foundation, Inc.
+dnl Copyright (C) 1998-2002, 2005-2014, 2019-2021 Free Software Foundation,
+dnl Inc.
 dnl
 dnl This file may be modified and/or distributed without restriction.
 
-AC_PREREQ([2.63])
+AC_PREREQ([2.64])
 AC_INIT([GNU parted], m4_esyscmd([build-aux/git-version-gen .version]),
         [bug-parted@gnu.org])
 
@@ -88,11 +89,6 @@ if test $ENABLE_DEVICE_MAPPER = yes; then
 	AC_DEFINE([ENABLE_DEVICE_MAPPER],
                   1, [device mapper (libdevmapper) support])
 fi
-
-AC_ARG_ENABLE([selinux],
-	[  --enable-selinux        enable SELinux support [default=no]], ,
-	enable_selinux=no
-)
 
 AC_ARG_ENABLE([discover-only],
 	[  --enable-discover-only  support only reading/probing [default=no]], ,
@@ -319,13 +315,6 @@ package as well (it may be called device-mapper-devel or something similar).]
   )
 fi
 AC_SUBST([DM_LIBS])
-
-dnl Check for SELinux
-SELINUX_LIBS=""
-if test "$enable_selinux" = yes; then
-	SELINUX_LIBS="-lselinux -lsepol"
-fi
-AC_SUBST([SELINUX_LIBS])
 
 dnl Check for termcap
 if test "$with_readline" = yes; then

@@ -15,7 +15,7 @@
 
 /*
  * EXT2_*_*() convienience macros added by Andrew Clausen <clausen@gnu.org>
- * Copyright (C) 2000, 2009-2014, 2019 Free Software Foundation, Inc.
+ * Copyright (C) 2000, 2009-2014, 2019-2021 Free Software Foundation, Inc.
  */
 
 #ifndef _EXT2_FS_H
@@ -173,7 +173,7 @@ struct ext2_inode
 
 #define i_size_high	i_dir_acl
 
-struct ext2_super_block
+struct __attribute__ ((packed)) ext2_super_block
 {
 	uint32_t	s_inodes_count;		/* Inodes count */
 	uint32_t	s_blocks_count;		/* Blocks count */

@@ -1,7 +1,7 @@
 /*
     libparted/fs_amiga - amiga file system support.
-    Copyright (C) 2000-2001, 2007, 2009-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 2000-2001, 2007, 2009-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -217,6 +217,7 @@ _amiga_read_block (PedDevice *dev, struct AmigaBlock *blk, PedSector block, stru
 							return NULL;
 					}
 				}
+				/* FALLTHROUGH */
 			case PED_EXCEPTION_IGNORE :
 			case PED_EXCEPTION_UNHANDLED :
 			default :

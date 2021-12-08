@@ -1,5 +1,6 @@
 /* libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2001, 2007-2014, 2019 Free Software Foundation, Inc.
+    Copyright (C) 1999-2001, 2007-2014, 2019-2021 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -212,8 +213,6 @@ error_close_dev:
  * This function erases all file system signatures that indicate that a
  * file system occupies a given region described by \p geom.
  * After this operation ped_file_system_probe() won't detect any file system.
- *
- * \note ped_file_system_create() calls this before creating a new file system.
  *
  * \return \c 1 on success, \c 0 on failure
  */

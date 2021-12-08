@@ -1,6 +1,7 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2000-2001, 2007-2014, 2019 Free Software Foundation, Inc.
+    Copyright (C) 2000-2001, 2007-2014, 2019-2021 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -418,13 +419,8 @@ fill_raw_part (PC98RawPartition* raw_part, const PedPartition* part)
 		return 0;
 	}
 	raw_part->end_cyl    = PED_CPU_TO_LE16(c);
-#if 0
-	raw_part->end_head   = h;
-	raw_part->end_sector = s;
-#else
 	raw_part->end_head   = 0;
 	raw_part->end_sector = 0;
-#endif
 
 	return 1;
 }

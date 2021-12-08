@@ -1,7 +1,7 @@
  /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2003, 2005, 2007-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 1999-2003, 2005, 2007-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -2407,6 +2407,10 @@ ped_partition_flag_get_name (PedPartitionFlag flag)
                 return N_("irst");
         case PED_PARTITION_ESP:
                 return N_("esp");
+        case PED_PARTITION_CHROMEOS_KERNEL:
+                return N_("chromeos_kernel");
+	case PED_PARTITION_BLS_BOOT:
+		return N_("bls_boot");
 
 	default:
 		ped_exception_throw (
@@ -2446,8 +2450,8 @@ ped_partition_flag_get_by_name (const char* name)
 	for (flag = ped_partition_flag_next (0); flag;
 	     		flag = ped_partition_flag_next (flag)) {
 		flag_name = ped_partition_flag_get_name (flag);
-		if (strcasecmp (name, flag_name) == 0
-		    || strcasecmp (name, _(flag_name)) == 0)
+		if (flag_name && (strcasecmp (name, flag_name) == 0
+		    || strcasecmp (name, _(flag_name)) == 0))
 			return flag;
 	}
 

@@ -1,7 +1,7 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2003-2005, 2007, 2009-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 2003-2005, 2007, 2009-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -529,7 +529,7 @@ struct __attribute__ ((packed)) _HfsJBlockListHeader {
         uint32_t        bytes_used;
         uint32_t        checksum;
         uint32_t        pad;
-        HfsJBlockInfo   binfo[1];
+        HfsJBlockInfo   binfo[];
 };
 typedef struct _HfsJBlockListHeader HfsJBlockListHeader;
 

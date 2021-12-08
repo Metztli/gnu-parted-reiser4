@@ -1,7 +1,7 @@
 #!/bin/sh
 # Probe Ext2, Ext3 and Ext4 file systems
 
-# Copyright (C) 2008-2014, 2019 Free Software Foundation, Inc.
+# Copyright (C) 2008-2014, 2019-2021 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ dev=loop-file
 ss=$sector_size_
 n_sectors=$((512*1024))
 
-for type in ext2 ext3 ext4 btrfs xfs nilfs2 ntfs vfat hfsplus udf; do
+for type in ext2 ext3 ext4 btrfs xfs nilfs2 ntfs vfat hfsplus udf f2fs; do
 
   ( mkfs.$type 2>&1 | grep -i '^usage' ) > /dev/null \
       || { warn_ "$ME: no $type support"; continue; }

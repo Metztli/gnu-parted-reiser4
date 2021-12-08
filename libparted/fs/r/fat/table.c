@@ -1,6 +1,7 @@
 /*
     libparted
-    Copyright (C) 1998-2000, 2007-2014, 2019 Free Software Foundation, Inc.
+    Copyright (C) 1998-2000, 2007-2014, 2019-2021 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -371,7 +372,7 @@ fat_table_is_bad (const FatTable* ft, FatCluster cluster)
 /*
     returns true if <cluster> represents an EOF marker
 */
-int
+int _GL_ATTRIBUTE_PURE
 fat_table_is_eof (const FatTable* ft, FatCluster cluster)
 {
 	return _test_code_eof (ft, cluster);
@@ -462,7 +463,7 @@ fat_table_set_avail (FatTable* ft, FatCluster cluster)
 
 #endif /* !DISCOVER_ONLY */
 
-int
+int _GL_ATTRIBUTE_CONST
 fat_table_entry_size (FatType fat_type)
 {
 	switch (fat_type) {

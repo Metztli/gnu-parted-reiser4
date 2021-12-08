@@ -1,7 +1,7 @@
 #!/bin/sh
 # ensure that parted names partitions on dm disks correctly
 
-# Copyright (C) 2011-2014, 2019 Free Software Foundation, Inc.
+# Copyright (C) 2011-2014, 2019-2021 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,8 @@
 require_root_
 require_udevadm_settle_
 
-(dmsetup --help) > /dev/null 2>&1 || skip_test_ "No dmsetup installed"
+test "x$ENABLE_DEVICE_MAPPER" = xyes \
+  || skip_ "no device-mapper support"
 
 # Device maps names - should be random to not conflict with existing ones on
 # the system

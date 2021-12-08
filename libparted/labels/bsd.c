@@ -1,7 +1,8 @@
 /* -*- Mode: c; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 8 -*-
 
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2000-2001, 2007-2014, 2019 Free Software Foundation, Inc.
+    Copyright (C) 2000-2001, 2007-2014, 2019-2021 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -164,8 +165,6 @@ bsd_probe (const PedDevice *dev)
 
 	label = &((BSDDiskData*) s0)->label;
 
-	alpha_bootblock_checksum(label);
-
 	/* check magic */
         bool found = PED_LE32_TO_CPU (label->d_magic) == BSD_DISKMAGIC;
 	free (s0);
@@ -307,19 +306,16 @@ error:
 static void
 _probe_and_add_boot_code (const PedDisk* disk)
 {
-	char *old_boot_code;
-	BSDRawLabel *old_label;
+	BSDDiskData *old_data;
 
 	void *s0;
 	if (!ptt_read_sector (disk->dev, 0, &s0))
 		return;
-	old_boot_code = ((BSDDiskData*) s0)->boot_code;
-	old_label = &((BSDDiskData*) s0)->label;
-
-	if (old_boot_code [0]
-	    && old_label->d_magic == PED_CPU_TO_LE32 (BSD_DISKMAGIC)) {
+	old_data = (BSDDiskData*) s0;
+	if (old_data->boot_code [0]
+	    && old_data->label.d_magic == PED_CPU_TO_LE32 (BSD_DISKMAGIC)) {
 		BSDDiskData *bsd_specific = (BSDDiskData*) disk->disk_specific;
-		memcpy (bsd_specific, old_boot_code, sizeof (BSDDiskData));
+		memcpy (bsd_specific, old_data, sizeof (BSDDiskData));
         }
 	free (s0);
 }

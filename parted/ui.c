@@ -1,6 +1,7 @@
 /*
     parted - a frontend to libparted
-    Copyright (C) 1999-2002, 2006-2014, 2019 Free Software Foundation, Inc.
+    Copyright (C) 1999-2002, 2006-2014, 2019-2021 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -909,11 +910,11 @@ command_line_get_word (const char* prompt, const char* def,
 int
 command_line_get_integer (const char* prompt, int* value)
 {
-        char     def_str [10];
+        char     def_str [20];
         char*    input;
         long     ret;
 
-        snprintf (def_str, 10, "%d", *value);
+        snprintf (def_str, 20, "%d", *value);
         input = command_line_get_word (prompt, *value ? def_str : NULL,
                                        NULL, 1);
         if (!input)
@@ -1138,7 +1139,7 @@ command_line_get_disk_flag (const char* prompt, const PedDisk* disk,
                             PedDiskFlag* flag)
 {
         StrList*            opts = NULL;
-        PedPartitionFlag    walk = 0;
+        PedDiskFlag         walk = 0;
         char*               flag_name;
 
         while ( (walk = ped_disk_flag_next (walk)) ) {

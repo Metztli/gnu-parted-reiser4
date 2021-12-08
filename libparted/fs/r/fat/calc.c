@@ -1,6 +1,6 @@
 /*
     libparted
-    Copyright (C) 1998-2000, 2002, 2007, 2009-2014, 2019 Free Software
+    Copyright (C) 1998-2000, 2002, 2007, 2009-2014, 2019-2021 Free Software
     Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -23,7 +23,7 @@
 #ifndef DISCOVER_ONLY
 
 /* returns the minimum size of clusters for a given file system type */
-PedSector
+PedSector _GL_ATTRIBUTE_CONST
 fat_min_cluster_size (FatType fat_type) {
 	switch (fat_type) {
 		case FAT_TYPE_FAT12: return 1;
@@ -33,7 +33,7 @@ fat_min_cluster_size (FatType fat_type) {
 	return 0;
 }
 
-static PedSector
+static PedSector _GL_ATTRIBUTE_CONST
 _smallest_power2_over (PedSector ceiling)
 {
 	PedSector	result = 1;
@@ -45,7 +45,7 @@ _smallest_power2_over (PedSector ceiling)
 }
 
 /* returns the minimum size of clusters for a given file system type */
-PedSector
+PedSector _GL_ATTRIBUTE_CONST
 fat_recommend_min_cluster_size (FatType fat_type, PedSector size) {
 	switch (fat_type) {
 		case FAT_TYPE_FAT12: return 1;
@@ -59,7 +59,7 @@ fat_recommend_min_cluster_size (FatType fat_type, PedSector size) {
 }
 
 /* returns the maxmimum size of clusters for a given file system type */
-PedSector
+PedSector _GL_ATTRIBUTE_CONST
 fat_max_cluster_size (FatType fat_type) {
 	switch (fat_type) {
 		case FAT_TYPE_FAT12: return 1;	/* dunno... who cares? */
@@ -70,7 +70,7 @@ fat_max_cluster_size (FatType fat_type) {
 }
 
 /* returns the minimum number of clusters for a given file system type */
-FatCluster
+FatCluster _GL_ATTRIBUTE_CONST
 fat_min_cluster_count (FatType fat_type) {
 	switch (fat_type) {
 		case FAT_TYPE_FAT12:
@@ -83,7 +83,7 @@ fat_min_cluster_count (FatType fat_type) {
 }
 
 /* returns the maximum number of clusters for a given file system type */
-FatCluster
+FatCluster _GL_ATTRIBUTE_CONST
 fat_max_cluster_count (FatType fat_type) {
 	switch (fat_type) {
 		case FAT_TYPE_FAT12: return 0xff0;
@@ -94,7 +94,7 @@ fat_max_cluster_count (FatType fat_type) {
 }
 
 /* what is this supposed to be?  What drugs are M$ on?  (Can I have some? :-) */
-PedSector
+PedSector _GL_ATTRIBUTE_CONST
 fat_min_reserved_sector_count (FatType fat_type)
 {
 	return (fat_type == FAT_TYPE_FAT32) ? 32 : 1;
@@ -314,7 +314,7 @@ fat_calc_resize_sizes (
     friends, to allow room for this space.  If too much of this space is left
     over, everyone will complain, so we have to be greedy, and use it all up...
  */
-PedSector
+PedSector _GL_ATTRIBUTE_PURE
 fat_calc_align_sectors (const PedFileSystem* new_fs,
 			const PedFileSystem* old_fs)
 {
@@ -359,7 +359,7 @@ fat_calc_align_sectors (const PedFileSystem* new_fs,
 	return align;
 }
 
-int
+int _GL_ATTRIBUTE_PURE
 fat_is_sector_in_clusters (const PedFileSystem* fs, PedSector sector)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
@@ -369,7 +369,7 @@ fat_is_sector_in_clusters (const PedFileSystem* fs, PedSector sector)
 	      		   + fs_info->cluster_sectors * fs_info->cluster_count;
 }
 
-FatFragment
+FatFragment _GL_ATTRIBUTE_PURE
 fat_cluster_to_frag (const PedFileSystem* fs, FatCluster cluster)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
@@ -379,7 +379,7 @@ fat_cluster_to_frag (const PedFileSystem* fs, FatCluster cluster)
 	return (cluster - 2) * fs_info->cluster_frags;
 }
 
-FatCluster
+FatCluster _GL_ATTRIBUTE_PURE
 fat_frag_to_cluster (const PedFileSystem* fs, FatFragment frag)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
@@ -389,7 +389,7 @@ fat_frag_to_cluster (const PedFileSystem* fs, FatFragment frag)
 	return frag / fs_info->cluster_frags + 2;
 }
 
-PedSector
+PedSector _GL_ATTRIBUTE_PURE
 fat_frag_to_sector (const PedFileSystem* fs, FatFragment frag)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
@@ -399,7 +399,7 @@ fat_frag_to_sector (const PedFileSystem* fs, FatFragment frag)
 	return frag * fs_info->frag_sectors + fs_info->cluster_offset;
 }
 
-FatFragment
+FatFragment _GL_ATTRIBUTE_PURE
 fat_sector_to_frag (const PedFileSystem* fs, PedSector sector)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
@@ -409,7 +409,7 @@ fat_sector_to_frag (const PedFileSystem* fs, PedSector sector)
 	return (sector - fs_info->cluster_offset) / fs_info->frag_sectors;
 }
 
-PedSector
+PedSector _GL_ATTRIBUTE_PURE
 fat_cluster_to_sector (const PedFileSystem* fs, FatCluster cluster)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);
@@ -420,7 +420,7 @@ fat_cluster_to_sector (const PedFileSystem* fs, FatCluster cluster)
 		+ fs_info->cluster_offset;
 }
 
-FatCluster
+FatCluster _GL_ATTRIBUTE_PURE
 fat_sector_to_cluster (const PedFileSystem* fs, PedSector sector)
 {
 	FatSpecific*	fs_info = FAT_SPECIFIC (fs);

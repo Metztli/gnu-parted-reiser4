@@ -1,6 +1,7 @@
 /*
     parted - a frontend to libparted
-    Copyright (C) 1999-2003, 2005-2014, 2019 Free Software Foundation, Inc.
+    Copyright (C) 1999-2003, 2005-2014, 2019-2021 Free Software Foundation,
+    Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1545,6 +1546,8 @@ do_resizepart (PedDevice** dev, PedDisk** diskp)
         PedGeometry             *range_end = NULL;
         PedConstraint*          constraint;
         int rc = 0;
+        char*                   end_input = NULL;
+        char*                   end_size = NULL;
 
         if (!disk) {
                 disk = ped_disk_new (*dev);
@@ -1560,12 +1563,25 @@ do_resizepart (PedDevice** dev, PedDisk** diskp)
 
         if (!command_line_get_partition (_("Partition number?"), disk, &part))
                 goto error;
+
+        /* Save the optional End value if the partition is busy. */
+        if (ped_partition_is_busy(part)) {
+            if (command_line_get_word_count())
+                end_size = command_line_pop_word();
+        }
+
+        /* If the partition is busy this may clear the command_line and prompt the user */
         if (!_partition_warn_busy (part))
                 goto error;
 
+        /* Push the End value back onto the command_line, if it exists */
+        if (end_size) {
+            command_line_push_word(end_size);
+            free(end_size);
+        }
+
         start = part->geom.start;
         end = oldend = part->geom.end;
-        char *end_input;
         if (!command_line_get_sector (_("End?"), *dev, &end, &range_end, &end_input))
                 goto error;
         _adjust_end_if_iec(&start, &end, range_end, end_input);

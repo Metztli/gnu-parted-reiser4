@@ -1,7 +1,7 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2000, 2002, 2004, 2007-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 2000, 2002, 2004, 2007-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -560,20 +560,6 @@ _rawpart_analyse (MacRawPartition* raw_part, PedDisk* disk, int num)
 	mac_part_data->data_region_length
 		= PED_BE32_TO_CPU (raw_part->data_count);
 
-	/* boot region - we have no idea what this is for, but Mac OSX
-	 * seems to put garbage here, and doesn't pay any attention to
-	 * it afterwards.  [clausen, dan burcaw]
-	 */
-#if 0
-	if (raw_part->boot_start) {
-		ped_exception_throw (
-			PED_EXCEPTION_ERROR,
-			PED_EXCEPTION_CANCEL,
-			_("The boot region doesn't start at the start "
-			  "of the partition."));
-		goto error_destroy_part;
-	}
-#endif
 	mac_part_data->boot_region_length
 		= PED_BE32_TO_CPU (raw_part->boot_count);
 

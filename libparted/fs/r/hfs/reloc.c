@@ -1,7 +1,7 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 2004-2005, 2007, 2009-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 2004-2005, 2007, 2009-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -224,6 +224,7 @@ hfs_do_move (PedFileSystem* fs, unsigned int *ptr_src,
 				priv_data->catalog_file
 				->cache[ref->ref_index].start_block =
 				PED_CPU_TO_BE16(new_start);
+			/* FALLTHROUGH */
 		    case CR_BTREE_EXT_0 :
 			file = priv_data->extent_file;
 			goto CR_BTREE;
@@ -372,6 +373,7 @@ hfs_cache_from_catalog(HfsCPrivateCache* cache, PedFileSystem* fs,
 	HfsExtDescriptor*	extent;
 	unsigned int		leaf_node, record_number;
 	unsigned int		i, j;
+	uint16_t		catalog_pos;
 
 	if (!priv_data->catalog_file->sect_nb) {
 		ped_exception_throw (
@@ -384,8 +386,9 @@ hfs_cache_from_catalog(HfsCPrivateCache* cache, PedFileSystem* fs,
 
 	if (!hfs_file_read_sector (priv_data->catalog_file, node, 0))
 		return 0;
-	header = (HfsHeaderRecord*)(node +  PED_BE16_TO_CPU(*((uint16_t*)
-						(node+(PED_SECTOR_SIZE_DEFAULT-2)))));
+	uint16_t offset;
+	memcpy(&offset, node+(PED_SECTOR_SIZE_DEFAULT-2), sizeof(uint16_t));
+	header = (HfsHeaderRecord*) (node + PED_BE16_TO_CPU(offset));
 
 	for (leaf_node = PED_BE32_TO_CPU (header->first_leaf_node);
 	     leaf_node;
@@ -396,14 +399,15 @@ hfs_cache_from_catalog(HfsCPrivateCache* cache, PedFileSystem* fs,
 		record_number = PED_BE16_TO_CPU (desc->rec_nb);
 		for (i = 1; i <= record_number; ++i) {
 		       /* undocumented alignement */
+			uint16_t value;
+			memcpy(&value, node+(PED_SECTOR_SIZE_DEFAULT - (2*i)), sizeof(uint16_t));
+			catalog_pos = PED_BE16_TO_CPU(value);
+			catalog_key = (HfsCatalogKey*) (node + catalog_pos);
 			unsigned int skip;
-			catalog_key = (HfsCatalogKey*) (node + PED_BE16_TO_CPU(
-				*((uint16_t*)(node+(PED_SECTOR_SIZE_DEFAULT - 2*i)))));
 			skip = (1 + catalog_key->key_length + 1) & ~1;
-			catalog_data = (HfsCatalog*)( ((uint8_t*)catalog_key)
-							+ skip );
+			catalog_data = (HfsCatalog*)(node+catalog_pos+skip);
 			/* check for obvious error in FS */
-			if (((uint8_t*)catalog_key - node < HFS_FIRST_REC)
+			if ((catalog_pos < HFS_FIRST_REC)
 			    || ((uint8_t*)catalog_data - node
 				>= PED_SECTOR_SIZE_DEFAULT
 				   - 2 * (signed)(record_number+1))) {
@@ -466,6 +470,7 @@ hfs_cache_from_extent(HfsCPrivateCache* cache, PedFileSystem* fs,
 	HfsExtDescriptor*	extent;
 	unsigned int		leaf_node, record_number;
 	unsigned int		i, j;
+	uint16_t		extent_pos;
 
 	if (!priv_data->extent_file->sect_nb) {
 		ped_exception_throw (
@@ -478,8 +483,9 @@ hfs_cache_from_extent(HfsCPrivateCache* cache, PedFileSystem* fs,
 
 	if (!hfs_file_read_sector (priv_data->extent_file, node, 0))
 		return 0;
-	header = ((HfsHeaderRecord*) (node + PED_BE16_TO_CPU(*((uint16_t *)
-						(node+(PED_SECTOR_SIZE_DEFAULT-2))))));
+	uint16_t offset;
+	memcpy(&offset, node+(PED_SECTOR_SIZE_DEFAULT-2), sizeof(uint16_t));
+	header = (HfsHeaderRecord*) (node + PED_BE16_TO_CPU(offset));
 
 	for (leaf_node = PED_BE32_TO_CPU (header->first_leaf_node);
 	     leaf_node;
@@ -490,14 +496,14 @@ hfs_cache_from_extent(HfsCPrivateCache* cache, PedFileSystem* fs,
 		record_number = PED_BE16_TO_CPU (desc->rec_nb);
 		for (i = 1; i <= record_number; i++) {
 			uint8_t	where;
-			extent_key = (HfsExtentKey*)
-					(node + PED_BE16_TO_CPU(*((uint16_t *)
-					      (node+(PED_SECTOR_SIZE_DEFAULT - 2*i)))));
+			uint16_t value;
+			memcpy(&value, node+(PED_SECTOR_SIZE_DEFAULT - (2*i)), sizeof(uint16_t));
+			extent_pos = PED_BE16_TO_CPU(value);
+			extent_key = (HfsExtentKey*)(node + extent_pos);
 			/* size is cst */
-			extent = (HfsExtDescriptor*)(((uint8_t*)extent_key)
-						       + sizeof (HfsExtentKey));
+			extent = (HfsExtDescriptor*)(node+extent_pos+sizeof(HfsExtentKey));
 			/* check for obvious error in FS */
-			if (((uint8_t*)extent_key - node < HFS_FIRST_REC)
+			if ((extent_pos < HFS_FIRST_REC)
 			    || ((uint8_t*)extent - node
 			        >= PED_SECTOR_SIZE_DEFAULT
 				   - 2 * (signed)(record_number+1))) {

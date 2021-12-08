@@ -1,7 +1,7 @@
 /*
     libparted
-    Copyright (C) 1998-2000, 2007, 2009-2014, 2019 Free Software Foundation,
-    Inc.
+    Copyright (C) 1998-2000, 2007, 2009-2014, 2019-2021 Free Software
+    Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -56,8 +56,6 @@ typedef struct _FatInfoSector	FatInfoSector;
 						/* doesn't work */	\
 					/* message: */			\
 			FAT_BOOT_MESSAGE
-
-#define FAT_BOOT_CODE_LENGTH 128
 
 struct __attribute__ ((packed)) _FatBootSector {
         uint8_t		boot_jump[3];	/* 00: Boot strap short or near jump */

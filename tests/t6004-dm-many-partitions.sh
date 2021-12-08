@@ -2,7 +2,7 @@
 # device-mapper: create many partitions
 # This would not create partitions > 16 when using device-mapper
 
-# Copyright (C) 2012, 2014, 2019 Free Software Foundation, Inc.
+# Copyright (C) 2012, 2014, 2019-2021 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,9 @@
 
 require_root_
 require_udevadm_settle_
-(dmsetup --help) > /dev/null 2>&1 || skip_test_ "No dmsetup installed"
+
+test "x$ENABLE_DEVICE_MAPPER" = xyes \
+  || skip_ "no device-mapper support"
 
 ss=$sector_size_
 ns=300
