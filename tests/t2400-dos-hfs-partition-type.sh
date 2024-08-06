@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that an HFS partition in a dos table gets the right ID
 
-# Copyright (C) 2010-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2010-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ n_sectors=8000
 
 dd if=/dev/null of=$dev bs=$ss seek=$n_sectors || framework_failure
 
-# create a GPT partition table
+# create a MS-DOS partition table
 parted -s $dev mklabel msdos \
   mkpart pri hfs  2048s 4095s \
   mkpart pri hfs+ 4096s 6143s > out 2>&1 || fail=1

@@ -1,6 +1,6 @@
 /*
     parted - a frontend to libparted
-    Copyright (C) 1999-2001, 2007-2014, 2019-2021 Free Software Foundation,
+    Copyright (C) 1999-2001, 2007-2014, 2019-2023 Free Software Foundation,
     Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -89,6 +89,7 @@ extern void print_using_dev (PedDevice* dev);
 
 /* in parted.c */
 extern int	opt_script_mode;
+extern int	opt_fix_mode;
 extern int	pretend_input_tty;
 
 extern void print_options_help ();

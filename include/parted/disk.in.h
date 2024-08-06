@@ -1,6 +1,6 @@
 /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2002, 2007-2014, 2019-2021 Free Software Foundation,
+    Copyright (C) 1999-2002, 2007-2014, 2019-2023 Free Software Foundation,
     Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -27,6 +27,13 @@
 #ifndef PED_DISK_H_INCLUDED
 #define PED_DISK_H_INCLUDED
 
+/* Include these to work around gnulib redefining free, read, etc. which causes problems
+ * with pt-common.h
+ */
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdint.h>
+
 /**
  * Disk flags
  */
@@ -40,8 +47,9 @@ enum _PedDiskFlag {
         /* This flag controls whether the boot flag of a GPT PMBR is set */
         PED_DISK_GPT_PMBR_BOOT=2,
 };
-#define PED_DISK_FIRST_FLAG             PED_DISK_CYLINDER_ALIGNMENT
-#define PED_DISK_LAST_FLAG              PED_DISK_GPT_PMBR_BOOT
+// NOTE: DO NOT define using enums
+#define PED_DISK_FIRST_FLAG             1 // PED_DISK_CYLINDER_ALIGNMENT
+#define PED_DISK_LAST_FLAG              2 // PED_DISK_GPT_PMBR_BOOT
 
 /**
  * Partition types
@@ -78,17 +86,25 @@ enum _PedPartitionFlag {
         PED_PARTITION_IRST=17,
         PED_PARTITION_ESP=18,
         PED_PARTITION_CHROMEOS_KERNEL=19,
-        PED_PARTITION_BLS_BOOT=20
+        PED_PARTITION_BLS_BOOT=20,
+        PED_PARTITION_LINUX_HOME=21,
+        PED_PARTITION_NO_AUTOMOUNT=22,
 };
-#define PED_PARTITION_FIRST_FLAG        PED_PARTITION_BOOT
-#define PED_PARTITION_LAST_FLAG         PED_PARTITION_BLS_BOOT
+// NOTE: DO NOT define using enums
+#define PED_PARTITION_FIRST_FLAG        1  // PED_PARTITION_BOOT
+#define PED_PARTITION_LAST_FLAG         22 // PED_PARTITION_NO_AUTOMOUNT
 
 enum _PedDiskTypeFeature {
-        PED_DISK_TYPE_EXTENDED=1,       /**< supports extended partitions */
-        PED_DISK_TYPE_PARTITION_NAME=2  /**< supports partition names */
+        PED_DISK_TYPE_EXTENDED=1,             /**< supports extended partitions */
+        PED_DISK_TYPE_PARTITION_NAME=2,       /**< supports partition names */
+        PED_DISK_TYPE_PARTITION_TYPE_ID=4,    /**< supports partition type-ids */
+        PED_DISK_TYPE_PARTITION_TYPE_UUID=8,  /**< supports partition type-uuids */
+        PED_DISK_TYPE_DISK_UUID=16,           /**< supports disk uuids */
+        PED_DISK_TYPE_PARTITION_UUID=32,      /**< supports partition uuids */
 };
-#define PED_DISK_TYPE_FIRST_FEATURE    PED_DISK_TYPE_EXTENDED
-#define PED_DISK_TYPE_LAST_FEATURE     PED_DISK_TYPE_PARTITION_NAME
+// NOTE: DO NOT define using enums
+#define PED_DISK_TYPE_FIRST_FEATURE    1  // PED_DISK_TYPE_EXTENDED
+#define PED_DISK_TYPE_LAST_FEATURE     32 // PED_DISK_TYPE_PARTITION_UUID
 
 struct _PedDisk;
 struct _PedPartition;
@@ -215,6 +231,7 @@ struct _PedDiskOps {
         int (*disk_is_flag_available) (
                 const PedDisk *disk,
                 PedDiskFlag flag);
+        uint8_t* (*disk_get_uuid) (const PedDisk* disk);
         /** \todo add label guessing op here */
 
         /* partition operations */
@@ -240,6 +257,15 @@ struct _PedDiskOps {
                 PedPartitionFlag flag);
         void (*partition_set_name) (PedPartition* part, const char* name);
         const char* (*partition_get_name) (const PedPartition* part);
+
+        int (*partition_set_type_id) (PedPartition* part, uint8_t id);
+        uint8_t (*partition_get_type_id) (const PedPartition* part);
+
+        int (*partition_set_type_uuid) (PedPartition* part, const uint8_t* uuid);
+        uint8_t* (*partition_get_type_uuid) (const PedPartition* part);
+
+        uint8_t* (*partition_get_uuid) (const PedPartition* part);
+
         int (*partition_align) (PedPartition* part,
                                 const PedConstraint* constraint);
         int (*partition_enumerate) (PedPartition* part);
@@ -311,6 +337,8 @@ extern int ped_disk_set_flag(PedDisk *disk, PedDiskFlag flag, int state);
 extern int ped_disk_get_flag(const PedDisk *disk, PedDiskFlag flag);
 extern int ped_disk_is_flag_available(const PedDisk *disk, PedDiskFlag flag);
 
+extern uint8_t* ped_disk_get_uuid (const PedDisk* disk);
+
 extern const char *ped_disk_flag_get_name(PedDiskFlag flag);
 extern PedDiskFlag ped_disk_flag_get_by_name(const char *name);
 extern PedDiskFlag ped_disk_flag_next(PedDiskFlag flag) _GL_ATTRIBUTE_CONST;
@@ -340,6 +368,15 @@ extern int ped_partition_set_system (PedPartition* part,
                                      const PedFileSystemType* fs_type);
 extern int ped_partition_set_name (PedPartition* part, const char* name);
 extern const char* ped_partition_get_name (const PedPartition* part);
+
+extern int ped_partition_set_type_id (PedPartition* part, uint8_t id);
+extern uint8_t ped_partition_get_type_id (const PedPartition* part);
+
+extern int ped_partition_set_type_uuid (PedPartition* part, const uint8_t* uuid);
+extern uint8_t* ped_partition_get_type_uuid (const PedPartition* part);
+
+extern uint8_t* ped_partition_get_uuid (const PedPartition* part);
+
 extern int ped_partition_is_busy (const PedPartition* part);
 extern char* ped_partition_get_path (const PedPartition* part);
 

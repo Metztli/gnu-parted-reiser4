@@ -1,7 +1,7 @@
 #!/bin/sh
 # Drive the dup-clobber program.
 
-# Copyright (C) 2011-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2011-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,8 +18,13 @@
 
 . "${srcdir=.}/init.sh"; path_prepend_ ../parted .
 
-for t in msdos gpt bsd; do
-    duplicate $t || fail=1
+for t in msdos gpt bsd sun atari mac pc98; do
+    case $t in
+      atari) [ $ss -ne 512 ] && continue
+          ;;
+      *) duplicate $t || fail=1
+          ;;
+    esac
 done
 
 Exit $fail

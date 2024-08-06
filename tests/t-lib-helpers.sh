@@ -411,10 +411,20 @@ device_mapper_required_()
 require_64bit_()
 {
   case $(uname -m) in
-      x86_64|ppc64)
+      aarch64|mips64|ppc64|x86_64)
           return 0;;
       *)
           skip_ "This test requires a 64 bit system"
           ;;
   esac
+}
+
+# Check if the specified filesystem is either built into the kernel, or can be loaded
+# as a module
+# Usage: has_filesystem vfat
+# Ruturns 0 if the filesystem is available, otherwise skips the test
+require_filesystem_()
+{
+  grep $1 /proc/filesystems >/dev/null && return 0
+  modprobe --quiet --dry-run $1 || skip_ "this test requires kernel support for $1"
 }

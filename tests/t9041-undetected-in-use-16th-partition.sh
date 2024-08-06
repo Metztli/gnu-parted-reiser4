@@ -1,7 +1,7 @@
 #!/bin/sh
 # Ensure that parted knows when N'th (N>=16) partition is mounted
 
-# Copyright (C) 2010-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2010-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ grep '^#define USE_BLKID 1' "$CONFIG_HEADER" > /dev/null ||
   skip_ 'this system lacks a new-enough libblkid'
 
 ss=$sector_size_
-partition_sectors=256  # sectors per partition
+partition_sectors=512  # sectors per partition
 n_partitions=17        # how many partitions to create
 start=2048             # start sector for the first partition
 gpt_slop=34            # sectors at end of disk reserved for GPT

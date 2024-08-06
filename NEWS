@@ -1,5 +1,70 @@
 GNU parted NEWS                                    -*- outline -*-
 
+* Noteworthy changes in release 3.5.28 (2023-03-24) [alpha]
+
+** New Features
+
+  Support GPT partition attribute bit 63 as no_automount flag.
+
+  Add type commands to set type-id on MS-DOS and type-uuid on GPT.
+
+  Add swap flag support to the dasd disklabel
+
+  Add display of GPT disk and partition UUIDs in JSON output
+
+
+** Bug Fixes
+
+  Fix use of enums in flag limits by switching to using #define
+
+  Fix ending sector location when using kibi IEC suffix
+
+* Noteworthy changes in release 3.5 (2022-04-18) [stable]
+
+** New Features
+
+  Update to latest gnulib for 3.5 release
+
+* Noteworthy changes in release 3.4.64.2 (2022-04-05) [alpha]
+
+** Bug Fixes
+
+  usage: remove the mention of "a particular partition"
+
+* Noteworthy changes in release 3.4.64 (2022-03-30) [alpha]
+
+** New Features
+
+  Add --fix to --script mode to automatically fix problems like the backup
+  GPT header not being at the end of a disk.
+
+  Add use of the swap partition flag to msdos disk labeled disks.
+
+  Allow the partition name to be an empty string when set in script mode.
+
+  Add --json command line switch to output the details of the disk as JSON.
+
+  Add support for the Linux home GUID using the linux-home flag.
+
+** Bug Fixes
+
+  Decrease disk sizes used in tests to make it easier to run the test suite
+  on systems with less memory. Largest filesystem is now 267MB (fat32). The
+  rest are only 10MB.
+
+  Add aarch64 and mips64 as valid machines for testing.
+
+  Escape colons and backslashes in the machine output. Device path,
+  model, and partition name could all include these. They are now
+  escaped with a backslash.
+
+  Use libdevmapper's retry remove option when the device is BUSY. This
+  prevents libdevmapper from printing confusin output when trying to
+  remove a busy partition.
+
+  Keep GUID specific attributes when writing the GPT header. Previously
+  they were set to 0.
+
 * Noteworthy changes in release 3.4 (2021-01-27) [stable]
 
   Include local gnulib change to version-etc.c date.
@@ -932,7 +997,7 @@ GNU parted NEWS                                    -*- outline -*-
 
 ========================================================================
 
-Copyright (C) 2001-2014, 2019-2021 Free Software Foundation, Inc.
+Copyright (C) 2001-2014, 2019-2023 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or

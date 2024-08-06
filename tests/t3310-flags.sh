@@ -1,7 +1,7 @@
 #!/bin/sh
 # Exercise partition flags.
 
-# Copyright (C) 2010-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2010-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -90,6 +90,10 @@ for table_type in aix amiga atari bsd dvh gpt mac msdos pc98 sun loop; do
            # test only tries to clear the flags once which causes this
            # test to fail.
            flags=`echo "$flags" | egrep -v 'lvm|raid'`
+           ;;
+    msdos) # FIXME: Exclude flags that can only be set in combination
+           # with certain other flags.
+           flags=`echo "$flags" | egrep -v 'hidden|lba'`
            ;;
   esac
 

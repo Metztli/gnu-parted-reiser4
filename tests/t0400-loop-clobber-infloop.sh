@@ -1,7 +1,7 @@
 #!/bin/sh
 # do not infloop in loop_clobber
 
-# Copyright (C) 2009-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2009-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,12 @@
 
 N=1M
 dev=loop-file
-dd if=/dev/null of=$dev bs=1 seek=$N || fail=1
+
+cleanup_() {
+    rm -f $dev;
+}
+
+dd if=/dev/zero of=$dev bs=$N count=1 || fail=1
 
 mkswap $dev || fail=1
 

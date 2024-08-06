@@ -2,7 +2,7 @@
 # test for Debian bug #582818 (http://bugs.debian.org/582818); forbid
 # the removal of a mounted partition.
 
-# Copyright (C) 2010-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2010-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,9 +22,11 @@ test "$VERBOSE" = yes && parted --version
 
 require_root_
 require_scsi_debug_module_
+require_fat_
+require_filesystem_ vfat
 
 # create memory-backed device
-scsi_debug_setup_ dev_size_mb=80 > dev-name ||
+scsi_debug_setup_ dev_size_mb=10 > dev-name ||
   skip_ 'failed to create scsi_debug device'
 dev=$(cat dev-name)
 
@@ -37,10 +39,10 @@ parted -s "$dev" mklabel msdos > out 2>&1 || fail=1
 # expect no output
 compare /dev/null out || fail=1
 
-parted -s "$dev" mkpart primary fat32 1 40 > out 2>&1 || fail=1
+parted -s "$dev" mkpart primary fat32 1 4 > out 2>&1 || fail=1
 compare /dev/null out || fail=1
 
-parted -s "$dev" mkpart primary fat32 40 80 > out 2>&1 || fail=1
+parted -s "$dev" mkpart primary fat32 4 10 > out 2>&1 || fail=1
 compare /dev/null out || fail=1
 
 # wait for new partition device to appear

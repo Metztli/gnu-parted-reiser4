@@ -1,7 +1,7 @@
 #!/bin/sh
 # exercise the resize library; FAT and HFS+ only
 
-# Copyright (C) 2009-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2009-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,11 +17,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 . "${srcdir=.}/init.sh"; path_prepend_ ../parted .
-require_hfs_
-require_fat_
 require_root_
 require_scsi_debug_module_
 require_512_byte_sector_size_
+
+
+FSTYPES=""
+
+# Is mkfs.hfsplus available?
+mkfs.hfsplus 2>&1 | grep '^usage:' && FSTYPES="hfs+"
+
+# Is mkfs.vfat available?
+mkfs.vfat 2>&1 | grep '^Usage:' && FSTYPES="$FSTYPES fat32 fat16"
+
+[ -n "$FSTYPES" ] || skip_ "Neither mkfs.hfsplus nor mkfs.vfat installed"
+
 
 ss=$sector_size_
 
@@ -29,8 +39,8 @@ start=63s
 default_end=546147s
     new_end=530144s
 
-# create memory-backed device
-scsi_debug_setup_ dev_size_mb=550 > dev-name ||
+# create memory-backed device. Must be > 256MB+8MB
+scsi_debug_setup_ dev_size_mb=267 > dev-name ||
   skip_ 'failed to create scsi_debug device'
 dev=$(cat dev-name)
 
@@ -53,7 +63,7 @@ mkdir "$mount_point" || fail=1
 # be sure to unmount upon interrupt, failure, etc.
 cleanup_fn_() { umount "${dev}1" > /dev/null 2>&1; }
 
-for fs_type in hfs+ fat32 fat16; do
+for fs_type in $FSTYPES; do
   echo "fs_type=$fs_type"
 
   # create an empty $fs_type partition, cylinder aligned, size > 256 MB
@@ -69,7 +79,7 @@ for fs_type in hfs+ fat32 fat16; do
   case $fs_type in
     fat16) mkfs_cmd='mkfs.vfat -F 16'; fsck='fsck.vfat -v';;
     fat32) mkfs_cmd='mkfs.vfat -F 32'; fsck='fsck.vfat -v';;
-    hfs*) mkfs_cmd='mkfs.hfs';         fsck=fsck.hfs;;
+    hfs*) mkfs_cmd='mkfs.hfsplus';     fsck=fsck.hfsplus;;
     *) error "internal error: unhandled fs type: $fs_type";;
   esac
 

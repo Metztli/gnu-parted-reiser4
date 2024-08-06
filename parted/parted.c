@@ -1,6 +1,6 @@
 /*
     parted - a frontend to libparted
-    Copyright (C) 1999-2003, 2005-2014, 2019-2021 Free Software Foundation,
+    Copyright (C) 1999-2003, 2005-2014, 2019-2023 Free Software Foundation,
     Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 
 #include <config.h>
 #include <stdbool.h>
+#include <uuid/uuid.h>
 
 #include "argmatch.h"
 #include "closeout.h"
@@ -57,6 +58,7 @@
 #include "c-ctype.h"
 #include "c-strcase.h"
 #include "xalloc.h"
+#include "jsonwrt.h"
 
 #ifdef ENABLE_MTRACE
 #include <mcheck.h>
@@ -77,6 +79,14 @@ static int MEGABYTE_SECTORS (PedDevice* dev)
 enum
 {
   PRETEND_INPUT_TTY = CHAR_MAX + 1,
+};
+
+/* Output modes */
+enum
+{
+  HUMAN,
+  MACHINE,
+  JSON
 };
 
 enum
@@ -115,7 +125,9 @@ static struct option const options[] = {
         {"help",        0, NULL, 'h'},
         {"list",        0, NULL, 'l'},
         {"machine",     0, NULL, 'm'},
+        {"json",        0, NULL, 'j'},
         {"script",      0, NULL, 's'},
+        {"fix",         0, NULL, 'f'},
         {"version",     0, NULL, 'v'},
         {"align",       required_argument, NULL, 'a'},
         {"-pretend-input-tty", 0, NULL, PRETEND_INPUT_TTY},
@@ -126,15 +138,18 @@ static const char *const options_help [][2] = {
         {"help",        N_("displays this help message")},
         {"list",        N_("lists partition layout on all block devices")},
         {"machine",     N_("displays machine parseable output")},
+        {"json",        N_("displays JSON output")},
         {"script",      N_("never prompts for user intervention")},
+        {"fix",         N_("in script mode, fix instead of abort when asked")},
         {"version",     N_("displays the version")},
         {"align=[none|cyl|min|opt]", N_("alignment for new partitions")},
         {NULL,          NULL}
 };
 
 int     opt_script_mode = 0;
+int     opt_fix_mode = 0;
 int     pretend_input_tty = 0;
-int     opt_machine_mode = 0;
+int     opt_output_mode = HUMAN;
 int     disk_is_modified = 0;
 int     is_toggle_mode = 0;
 int     alignment = ALIGNMENT_OPTIMAL;
@@ -160,6 +175,8 @@ static const char* end_msg =          N_("END is disk location, such as "
 static const char* state_msg =        N_("STATE is one of: on, off\n");
 static const char* device_msg =       N_("DEVICE is usually /dev/hda or /dev/sda\n");
 static const char* name_msg =         N_("NAME is any word you want\n");
+static const char* type_msg =         N_("TYPE_ID is a value between 0x01 and 0xff, "
+                "TYPE_UUID is a UUID\n");
 
 static const char* copyright_msg = N_(
 "Copyright (C) 1998 - 2006 Free Software Foundation, Inc.\n"
@@ -180,6 +197,8 @@ static char* mkpart_fs_type_msg;
 static Command* commands [256] = {NULL};
 static PedTimer* g_timer;
 static TimerContext timer_context;
+
+static struct ul_jsonwrt json;
 
 static int _print_list ();
 static void _done (PedDevice* dev, PedDisk *diskp);
@@ -564,16 +583,27 @@ void _strip_trailing_spaces(char *str)
                 str[i]='\0';
 }
 
-/* Return true, if str ends with [kMGTPEZY]iB, i.e. IEC units.  */
+/* Return true if the unit is one of the supported IEC unit values */
+static bool
+_is_unit_IEC(const PedUnit unit) {
+    return (unit == PED_UNIT_KIBIBYTE) || (unit == PED_UNIT_MEBIBYTE) ||
+           (unit == PED_UNIT_GIBIBYTE) || (unit == PED_UNIT_TEBIBYTE);
+}
+
+/* Return true, if str ends with IEC units.  */
 static bool
 _string_ends_with_iec_unit(const char *str)
 {
-        /* 3 characters for the IEC unit and at least 1 digit */
-        if (!str || strlen(str) < 4)
-                return false;
+    /* 3 characters for the IEC unit and at least 1 digit */
+    if (!str || strlen(str) < 4)
+        return false;
 
-        char const *p = str + strlen(str) - 3;
-        return strchr ("kMGTPEZY", *p) && c_strcasecmp (p+1, "iB") == 0;
+    char const *p = str + strlen(str) - 3;
+    PedUnit unit = ped_unit_get_by_name(p);
+    if (unit == -1) {
+        return false;
+    }
+    return _is_unit_IEC(unit);
 }
 
 /* Return true if str ends with explicit unit identifier.
@@ -593,7 +623,7 @@ _string_has_unit_suffix(const char *str)
         return false;
 }
 
-/* If the selected unit is one of kiB, MiB, GiB or TiB and the partition is not
+/* If the selected unit is one of KiB, MiB, GiB or TiB and the partition is not
  * only 1 sector long, then adjust the end so that it is one sector before the
  * given position. Also adjust range_end accordingly. Thus next partition can
  * start immediately after this one.
@@ -617,9 +647,7 @@ _adjust_end_if_iec (PedSector* start, PedSector* end,
         _strip_trailing_spaces(end_input);
         PedUnit unit = ped_unit_get_default();
         if (_string_ends_with_iec_unit(end_input) ||
-            (!_string_has_unit_suffix(end_input) &&
-             ((unit == PED_UNIT_KIBIBYTE) || (unit == PED_UNIT_MEBIBYTE) ||
-              (unit == PED_UNIT_GIBIBYTE) || (unit == PED_UNIT_TEBIBYTE)))) {
+            (!_string_has_unit_suffix(end_input) && _is_unit_IEC(unit))) {
                 *end -= 1;
                 range_end->start -= 1;
                 range_end->end -= 1;
@@ -642,6 +670,7 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
         char*                    part_name = NULL;
         char                     *start_usr = NULL, *end_usr = NULL;
         char                     *start_sol = NULL, *end_sol = NULL;
+        char                     *end_input = NULL;
 
         if (*diskp)
                 disk = *diskp;
@@ -695,12 +724,10 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
 
         if (!command_line_get_sector (_("Start?"), *dev, &start, &range_start, NULL))
                 goto error;
-        char *end_input;
         if (!command_line_get_sector (_("End?"), *dev, &end, &range_end, &end_input))
                 goto error;
 
         _adjust_end_if_iec(&start, &end, range_end, end_input);
-        free(end_input);
 
         /* processing starts here */
         part = ped_partition_new (disk, part_type, fs_type, start, end);
@@ -836,6 +863,7 @@ do_mkpart (PedDevice** dev, PedDisk** diskp)
         free (end_usr);
         free (start_sol);
         free (end_sol);
+        free(end_input);
 
         if ((*dev)->type != PED_DEVICE_FILE)
                 disk_is_modified = 1;
@@ -857,6 +885,7 @@ error:
         free (end_usr);
         free (start_sol);
         free (end_sol);
+        free(end_input);
 
         return 0;
 }
@@ -900,6 +929,70 @@ error:
         return 0;
 }
 
+static int
+do_type (PedDevice** dev, PedDisk** diskp)
+{
+        if (!*diskp)
+                *diskp = ped_disk_new (*dev);
+        if (!*diskp)
+                goto error;
+
+        bool has_type_id = ped_disk_type_check_feature ((*diskp)->type,
+                                                        PED_DISK_TYPE_PARTITION_TYPE_ID);
+        bool has_type_uuid = ped_disk_type_check_feature ((*diskp)->type,
+                                                          PED_DISK_TYPE_PARTITION_TYPE_UUID);
+
+        PED_ASSERT (!(has_type_id && has_type_uuid));
+
+        if (!has_type_id && !has_type_uuid) {
+                ped_exception_throw (PED_EXCEPTION_ERROR, PED_EXCEPTION_CANCEL,
+                                     _("%s disk labels do not support partition type."),
+                                     (*diskp)->type->name);
+                goto error;
+        }
+
+        PedPartition* part = NULL;
+        if (!command_line_get_partition (_("Partition number?"), *diskp, &part))
+                goto error;
+
+        char* input = NULL;
+
+        if (has_type_id) {
+                uint8_t type_id = ped_partition_get_type_id (part);
+                static char buf[8];
+                snprintf(buf, 8, "0x%02x", type_id);
+
+                input = command_line_get_word (_("Partition type-id?"), buf, NULL, 0);
+                if (!input)
+                    goto error;
+
+                unsigned int tmp = strtol (input, (char**) NULL, 16);
+                if (tmp < 0x01 || tmp > 0xff) {
+                        ped_exception_throw (PED_EXCEPTION_ERROR, PED_EXCEPTION_CANCEL,
+                                             _("Invalid type-id."));
+                        goto error_free_input;
+                }
+
+                if (!ped_partition_set_type_id (part, tmp))
+                        goto error_free_input;
+        }
+
+
+        free (input);
+
+        // Reset the fs_type based on the filesystem, if it exists
+        part->fs_type = ped_file_system_probe (&part->geom);
+
+        if (!ped_disk_commit (*diskp))
+                goto error;
+        return 1;
+
+error_free_input:
+        free (input);
+error:
+        return 0;
+}
+
 static char*
 partition_print_flags (PedPartition const *part)
 {
@@ -925,6 +1018,32 @@ partition_print_flags (PedPartition const *part)
     }
 
   return res;
+}
+
+static void
+partition_print_flags_json (PedPartition const *part)
+{
+    if (!part)
+        return;
+
+    int did_open_array = 0;
+
+    PedPartitionFlag flag;
+    for (flag = ped_partition_flag_next (0); flag;
+         flag = ped_partition_flag_next (flag))
+    {
+        if (ped_partition_get_flag (part, flag))
+        {
+            if (!did_open_array)
+                ul_jsonwrt_array_open (&json, "flags");
+            did_open_array = 1;
+
+            ul_jsonwrt_value_s (&json, NULL, ped_partition_flag_get_name (flag));
+        }
+    }
+
+    if (did_open_array)
+        ul_jsonwrt_array_close (&json);
 }
 
 static int
@@ -961,6 +1080,32 @@ disk_print_flags (PedDisk const *disk)
 }
 
 static void
+disk_print_flags_json (PedDisk const *disk)
+{
+    if (!disk)
+        return;
+
+    int did_open_array = 0;
+
+    PedDiskFlag flag;
+    for (flag = ped_disk_flag_next (0); flag;
+         flag = ped_disk_flag_next (flag))
+    {
+        if (ped_disk_get_flag (disk, flag))
+        {
+            if (!did_open_array)
+                ul_jsonwrt_array_open (&json, "flags");
+            did_open_array = 1;
+
+            ul_jsonwrt_value_s (&json, NULL, ped_disk_flag_get_name (flag));
+        }
+    }
+
+    if (did_open_array)
+        ul_jsonwrt_array_close (&json);
+}
+
+static void
 _print_disk_geometry (const PedDevice *dev)
 {
         PED_ASSERT (dev != NULL);
@@ -969,9 +1114,14 @@ _print_disk_geometry (const PedDevice *dev)
                                 chs->heads * chs->sectors,
                                 PED_UNIT_KILOBYTE);
 
-        if (opt_machine_mode) {
+        if (opt_output_mode == MACHINE) {
             printf ("%d:%d:%d:%s;\n",
                     chs->cylinders, chs->heads, chs->sectors, cyl_size);
+        } else if (opt_output_mode == JSON) {
+            char* tmp = ped_malloc (128);
+            snprintf (tmp, 128, "%d,%d,%d %s", chs->cylinders, chs->heads, chs->sectors, cyl_size);
+            ul_jsonwrt_value_s (&json, "geometry", tmp);
+            free (tmp);
         } else {
             printf (_("BIOS cylinder,head,sector geometry: %d,%d,%d.  "
                       "Each cylinder is %s.\n"),
@@ -979,6 +1129,32 @@ _print_disk_geometry (const PedDevice *dev)
         }
 
         free (cyl_size);
+}
+
+static char *
+_escape_machine_string (const char *str)
+{
+        size_t i, j;
+        char *dest;
+
+        dest = ped_malloc (2 * strlen(str) + 1);
+        if (!dest)
+                return NULL;
+
+        for (i = 0, j = 0; str[i] != '\0'; i++, j++) {
+             switch (str[i]) {
+                 case ':':
+                 case '\\':
+                     dest[j++] = '\\';
+                     /* fallthrough */
+                 default:
+                     dest[j] = str[i];
+                     break;
+             }
+        }
+        dest[j] = '\0';
+
+        return dest;
 }
 
 static void
@@ -1000,7 +1176,10 @@ _print_disk_info (const PedDevice *dev, const PedDisk *diskp)
         const char* pt_name = diskp ? diskp->type->name : "unknown";
         char *disk_flags = disk_print_flags (diskp);
 
-        if (opt_machine_mode) {
+        if (opt_output_mode == MACHINE) {
+            char *escaped_path = _escape_machine_string (dev->path);
+            char *escaped_model = _escape_machine_string (dev->model);
+
             switch (default_unit) {
                 case PED_UNIT_CHS:      puts ("CHS;");
                                         break;
@@ -1011,9 +1190,31 @@ _print_disk_info (const PedDevice *dev, const PedDisk *diskp)
 
             }
             printf ("%s:%s:%s:%lld:%lld:%s:%s:%s;\n",
-                    dev->path, end, transport[dev->type],
+                    escaped_path, end, transport[dev->type],
                     dev->sector_size, dev->phys_sector_size,
-                    pt_name, dev->model, disk_flags);
+                    pt_name, escaped_model, disk_flags);
+            free (escaped_path);
+            free (escaped_model);
+        } else if (opt_output_mode == JSON) {
+            ul_jsonwrt_value_s (&json, "path", dev->path);
+            ul_jsonwrt_value_s (&json, "size", end);
+            ul_jsonwrt_value_s (&json, "model", dev->model);
+            ul_jsonwrt_value_s (&json, "transport", transport[dev->type]);
+            ul_jsonwrt_value_u64 (&json, "logical-sector-size", dev->sector_size);
+            ul_jsonwrt_value_u64 (&json, "physical-sector-size", dev->phys_sector_size);
+            ul_jsonwrt_value_s (&json, "label", pt_name);
+            if (diskp) {
+                bool has_disk_uuid = ped_disk_type_check_feature (diskp->type, PED_DISK_TYPE_DISK_UUID);
+                if (has_disk_uuid) {
+                    uint8_t* uuid = ped_disk_get_uuid (diskp);
+                    static char buf[UUID_STR_LEN];
+                    ul_jsonwrt_value_s (&json, "uuid", buf);
+                    free (uuid);
+                }
+                ul_jsonwrt_value_u64 (&json, "max-partitions",
+                                      ped_disk_get_max_primary_partition_count(diskp));
+                disk_print_flags_json (diskp);
+            }
         } else {
             printf (_("Model: %s (%s)\n"),
                     dev->model, transport[dev->type]);
@@ -1029,7 +1230,7 @@ _print_disk_info (const PedDevice *dev, const PedDisk *diskp)
             || ped_unit_get_default () == PED_UNIT_CYLINDER)
                 _print_disk_geometry (dev);
 
-        if (!opt_machine_mode) {
+        if (opt_output_mode == HUMAN) {
             printf (_("Partition Table: %s\n"), pt_name);
             printf (_("Disk Flags: %s\n"), disk_flags);
         }
@@ -1135,19 +1336,31 @@ do_print (PedDevice** dev, PedDisk** diskp)
                 return status;
         }
 
+        if (opt_output_mode == JSON) {
+            ul_jsonwrt_init (&json, stdout, 0);
+            ul_jsonwrt_root_open (&json);
+            ul_jsonwrt_object_open (&json, "disk");
+        }
+
         _print_disk_info (*dev, *diskp);
         if (!*diskp)
                 goto nopt;
-        if (!opt_machine_mode)
+        if (opt_output_mode == HUMAN)
                 putchar ('\n');
 
         has_extended = ped_disk_type_check_feature ((*diskp)->type,
                                          PED_DISK_TYPE_EXTENDED);
         has_name = ped_disk_type_check_feature ((*diskp)->type,
                                          PED_DISK_TYPE_PARTITION_NAME);
+        bool has_type_id = ped_disk_type_check_feature ((*diskp)->type,
+							PED_DISK_TYPE_PARTITION_TYPE_ID);
+        bool has_type_uuid = ped_disk_type_check_feature ((*diskp)->type,
+							  PED_DISK_TYPE_PARTITION_TYPE_UUID);
+        bool has_part_uuid = ped_disk_type_check_feature ((*diskp)->type,
+							  PED_DISK_TYPE_PARTITION_UUID);
 
         PedPartition* part;
-        if (!opt_machine_mode) {
+        if (opt_output_mode == HUMAN) {
             StrList *row1;
 
             if (ped_unit_get_default() == PED_UNIT_CHS) {
@@ -1188,6 +1401,7 @@ do_print (PedDevice** dev, PedDisk** diskp)
                             sprintf (tmp, "%2s ", "");
 
                     StrList *row = str_list_create (tmp, NULL);
+                    free(tmp);
 
                     start = ped_unit_format (*dev, part->geom.start);
                     end = ped_unit_format_byte (
@@ -1247,6 +1461,78 @@ do_print (PedDevice** dev, PedDisk** diskp)
             table_destroy (table);
             str_list_destroy (row1);
 
+        } else if (opt_output_mode == JSON) {
+
+            ul_jsonwrt_array_open (&json, "partitions");
+
+            for (part = ped_disk_next_partition (*diskp, NULL); part;
+                 part = ped_disk_next_partition (*diskp, part)) {
+
+                if ((!has_free_arg && !ped_partition_is_active(part)) ||
+                    part->type & PED_PARTITION_METADATA)
+                    continue;
+
+                ul_jsonwrt_object_open (&json, NULL);
+
+                ul_jsonwrt_value_u64 (&json, "number", part->num >= 0 ? part->num : 0);
+
+                tmp = ped_unit_format (*dev, part->geom.start);
+                ul_jsonwrt_value_s (&json, "start", tmp);
+                free (tmp);
+
+                tmp = ped_unit_format_byte (*dev, (part->geom.end + 1) * (*dev)->sector_size - 1);
+                ul_jsonwrt_value_s (&json, "end", tmp);
+                free (tmp);
+
+                if (ped_unit_get_default() != PED_UNIT_CHS) {
+                    tmp = ped_unit_format (*dev, part->geom.length);
+                    ul_jsonwrt_value_s (&json, "size", tmp);
+                    free (tmp);
+                }
+
+                name = ped_partition_type_get_name (part->type);
+                ul_jsonwrt_value_s (&json, "type", name);
+
+                if (!(part->type & PED_PARTITION_FREESPACE)) {
+
+                    if (has_type_id) {
+                        uint8_t type_id = ped_partition_get_type_id (part);
+                        static char buf[8];
+                        snprintf(buf, 8, "0x%02x", type_id);
+                        ul_jsonwrt_value_s (&json, "type-id", buf);
+                    }
+
+                    if (has_type_uuid) {
+                        uint8_t* type_uuid = ped_partition_get_type_uuid (part);
+                        static char buf[UUID_STR_LEN];
+                        ul_jsonwrt_value_s (&json, "type-uuid", buf);
+                        free (type_uuid);
+                    }
+
+                    if (has_part_uuid) {
+                        uint8_t* uuid = ped_partition_get_uuid (part);
+                        static char buf[UUID_STR_LEN];
+                        ul_jsonwrt_value_s (&json, "uuid", buf);
+                        free (uuid);
+                    }
+
+                    if (has_name) {
+                        name = ped_partition_get_name (part);
+                        if (strcmp (name, "") != 0)
+                            ul_jsonwrt_value_s (&json, "name", name);
+                    }
+
+                    if (part->fs_type)
+                        ul_jsonwrt_value_s (&json, "filesystem", part->fs_type->name);
+
+                    partition_print_flags_json (part);
+                }
+
+                ul_jsonwrt_object_close (&json);
+            }
+
+            ul_jsonwrt_array_close (&json);
+
         } else {
 
             for (part = ped_disk_next_partition (*diskp, NULL); part;
@@ -1284,8 +1570,11 @@ do_print (PedDevice** dev, PedDisk** diskp)
                         putchar (':');
 
                     if (has_name)
-                        printf ("%s:", ped_partition_get_name (part));
-                    else
+                    {
+                        char *escaped_name = _escape_machine_string (ped_partition_get_name (part));
+                        printf ("%s:", escaped_name);
+                        free (escaped_name);
+                    } else
                         putchar (':');
 
                     char *flags = partition_print_flags (part);
@@ -1298,9 +1587,13 @@ do_print (PedDevice** dev, PedDisk** diskp)
             }
         }
 
-        return ok;
-
 nopt:
+
+        if (opt_output_mode == JSON) {
+            ul_jsonwrt_object_close (&json);
+            ul_jsonwrt_root_close (&json);
+        }
+
         return ok;
 }
 
@@ -1577,7 +1870,6 @@ do_resizepart (PedDevice** dev, PedDisk** diskp)
         /* Push the End value back onto the command_line, if it exists */
         if (end_size) {
             command_line_push_word(end_size);
-            free(end_size);
         }
 
         start = part->geom.start;
@@ -1585,7 +1877,7 @@ do_resizepart (PedDevice** dev, PedDisk** diskp)
         if (!command_line_get_sector (_("End?"), *dev, &end, &range_end, &end_input))
                 goto error;
         _adjust_end_if_iec(&start, &end, range_end, end_input);
-        free(end_input);
+
         /* Do not move start of the partition */
         constraint = constraint_from_start_end_fixed_start (*dev, start, range_end);
         if (!ped_disk_set_partition_geom (disk, part, constraint,
@@ -1611,6 +1903,9 @@ error_destroy_constraint:
 error:
         if (range_end != NULL)
                 ped_geometry_destroy (range_end);
+        free(end_input);
+        free(end_size);
+
         return rc;
 }
 
@@ -2036,9 +2331,8 @@ command_register (commands, command_create (
         str_list_create_unique ("print", _("print"), NULL),
         do_print,
         str_list_create (
-_("print [devices|free|list,all|NUMBER]     display the partition table, "
-  "available devices, free space, all found partitions, or a particular "
-  "partition"),
+_("print [devices|free|list,all]            display the partition table, "
+  "or available devices, or free space, or all found partitions"),
 NULL),
         str_list_create (
 _("Without arguments, 'print' displays the entire partition table. However "
@@ -2047,8 +2341,6 @@ _("  devices   : display all active block devices\n"),
 _("  free      : display information about free unpartitioned space on the "
   "current block device\n"),
 _("  list, all : display the partition tables of all active block devices\n"),
-_("  NUMBER    : display more detailed information about this particular "
-  "partition\n"),
 NULL), 1));
 
 command_register (commands, command_create (
@@ -2134,6 +2426,14 @@ NULL),
         str_list_create (_(number_msg), flag_msg, NULL), 1));
 
 command_register (commands, command_create (
+        str_list_create_unique ("type", _("type"), NULL),
+        do_type,
+        str_list_create (
+_("type NUMBER TYPE-ID or TYPE-UUID         type set TYPE-ID or TYPE-UUID of partition NUMBER"),
+NULL),
+        str_list_create (_(number_msg), _(type_msg), NULL), 1));
+
+command_register (commands, command_create (
         str_list_create_unique ("unit", _("unit"), NULL),
         do_unit,
         str_list_create (
@@ -2191,7 +2491,7 @@ int     opt, help = 0, list = 0, version = 0, wrong = 0;
 
 while (1)
 {
-        opt = getopt_long (*argc_ptr, *argv_ptr, "hlmsva:",
+        opt = getopt_long (*argc_ptr, *argv_ptr, "hlmjsfva:",
                            options, NULL);
         if (opt == -1)
                 break;
@@ -2199,8 +2499,10 @@ while (1)
         switch (opt) {
                 case 'h': help = 1; break;
                 case 'l': list = 1; break;
-                case 'm': opt_machine_mode = 1; break;
+                case 'm': opt_output_mode = MACHINE; break;
+                case 'j': opt_output_mode = JSON; break;
                 case 's': opt_script_mode = 1; break;
+                case 'f': opt_fix_mode = 1; break;
                 case 'v': version = 1; break;
                 case 'a':
                   alignment = XARGMATCH ("--align", optarg,
@@ -2217,7 +2519,7 @@ while (1)
 
 if (wrong == 1) {
         fprintf (stderr,
-                 _("Usage: %s [-hlmsv] [-a<align>] [DEVICE [COMMAND [PARAMETERS]]...]\n"),
+                 _("Usage: %s [-hlmsfv] [-a<align>] [DEVICE [COMMAND [PARAMETERS]]...]\n"),
                  program_name);
         return 0;
 }
@@ -2247,7 +2549,7 @@ _choose_device (int* argc_ptr, char*** argv_ptr)
 {
 PedDevice*      dev;
 
-/* specified on comand line? */
+/* specified on command line? */
 if (*argc_ptr) {
         dev = ped_device_get ((*argv_ptr) [0]);
         if (!dev)
@@ -2335,7 +2637,7 @@ _done (PedDevice* dev, PedDisk* diskp)
                           "rebooting.  Read section 4 of the Parted User "
                           "documentation for more information."));
         }
-        if (!opt_script_mode && !opt_machine_mode && disk_is_modified) {
+        if (!opt_script_mode && opt_output_mode == HUMAN && disk_is_modified) {
                 ped_exception_throw (
                         PED_EXCEPTION_INFORMATION, PED_EXCEPTION_OK,
                         _("You may need to update /etc/fstab.\n"));

@@ -1,5 +1,5 @@
 /* libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2014, 2019-2021 Free Software Foundation, Inc.
+    Copyright (C) 1999-2014, 2019-2023 Free Software Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1399,16 +1399,17 @@ static int
 init_sdmmc (PedDevice* dev)
 {
         char id[128];
-        char *type, *name;
+        char *type = NULL;
+        char *name = NULL;
 
         if (sdmmc_get_product_info (dev, &type, &name)) {
                 snprintf (id, sizeof(id) - 1, "%s %s", type, name);
-                free (type);
-                free (name);
         } else {
                 snprintf (id, sizeof(id) - 1, "%s",
                           _("Generic SD/MMC Storage Card"));
         }
+        free (type);
+        free (name);
         return init_generic(dev, id);
 }
 
@@ -1678,7 +1679,7 @@ _flush_cache (PedDevice* dev)
                         break;
                 if (!_partition_is_mounted_by_path (name)) {
                         fd = open (name, WR_MODE, 0);
-                        if (fd > 0) {
+                        if (fd > -1) {
                                 ioctl (fd, BLKFLSBUF);
 retry:
                                 if (fsync (fd) < 0 || close (fd) < 0)
@@ -2447,6 +2448,9 @@ _device_get_part_path (PedDevice const *dev, int num)
 #else
         devpath = dev->path;
 #endif
+        if (!devpath)
+            return NULL;
+
         path_len = strlen (devpath);
         /* Check for devfs-style /disc => /partN transformation
            unconditionally; the system might be using udev with devfs rules,
@@ -2849,6 +2853,7 @@ _dm_remove_partition(PedDisk* disk, int partno)
         if (!task)
                 goto err;
         dm_task_set_name (task, part_name);
+        dm_task_retry_remove(task);
         if (!dm_task_set_cookie (task, &cookie, 0))
                 goto err;
         rc = _dm_task_run_wait (task, cookie);

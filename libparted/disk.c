@@ -1,6 +1,6 @@
  /*
     libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2003, 2005, 2007-2014, 2019-2021 Free Software
+    Copyright (C) 1999-2003, 2005, 2007-2014, 2019-2023 Free Software
     Foundation, Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -886,6 +886,37 @@ ped_disk_flag_next(PedDiskFlag flag)
         return (flag + 1) % (PED_DISK_LAST_FLAG + 1);
 }
 
+static int
+_assert_disk_uuid_feature (const PedDiskType* disk_type)
+{
+        if (!ped_disk_type_check_feature (
+                        disk_type, PED_DISK_TYPE_DISK_UUID)) {
+                ped_exception_throw (
+                        PED_EXCEPTION_ERROR,
+                        PED_EXCEPTION_CANCEL,
+                        "%s disk labels do not support disk uuids.",
+                        disk_type->name);
+                return 0;
+        }
+        return 1;
+}
+
+/**
+ * Get the uuid of the disk \p disk. This will only work if the disk label
+ * supports it.
+ */
+uint8_t*
+ped_disk_get_uuid (const PedDisk *disk)
+{
+        PED_ASSERT (disk != NULL);
+
+        if (!_assert_disk_uuid_feature (disk->type))
+                return NULL;
+
+        PED_ASSERT (disk->type->ops->disk_get_uuid != NULL);
+        return disk->type->ops->disk_get_uuid (disk);
+}
+
 /**
  * \internal We turned a really nasty bureaucracy problem into an elegant maths
  * problem :-)  Basically, there are some constraints to a partition's
@@ -1458,6 +1489,51 @@ _assert_partition_name_feature (const PedDiskType* disk_type)
 	return 1;
 }
 
+static int
+_assert_partition_type_id_feature (const PedDiskType* disk_type)
+{
+        if (!ped_disk_type_check_feature (
+                        disk_type, PED_DISK_TYPE_PARTITION_TYPE_ID)) {
+                ped_exception_throw (
+                        PED_EXCEPTION_ERROR,
+                        PED_EXCEPTION_CANCEL,
+                        "%s disk labels do not support partition type-ids.",
+                        disk_type->name);
+                return 0;
+        }
+        return 1;
+}
+
+static int
+_assert_partition_type_uuid_feature (const PedDiskType* disk_type)
+{
+        if (!ped_disk_type_check_feature (
+                        disk_type, PED_DISK_TYPE_PARTITION_TYPE_UUID)) {
+                ped_exception_throw (
+                        PED_EXCEPTION_ERROR,
+                        PED_EXCEPTION_CANCEL,
+                        "%s disk labels do not support partition type-uuids.",
+                        disk_type->name);
+                return 0;
+        }
+        return 1;
+}
+
+static int
+_assert_partition_uuid_feature (const PedDiskType* disk_type)
+{
+        if (!ped_disk_type_check_feature (
+                        disk_type, PED_DISK_TYPE_PARTITION_UUID)) {
+                ped_exception_throw (
+                        PED_EXCEPTION_ERROR,
+                        PED_EXCEPTION_CANCEL,
+                        "%s disk labels do not support partition uuids.",
+                        disk_type->name);
+                return 0;
+        }
+        return 1;
+}
+
 /**
  * Sets the name of a partition.
  *
@@ -1510,6 +1586,96 @@ ped_partition_get_name (const PedPartition* part)
 	return part->disk->type->ops->partition_get_name (part);
 }
 
+/**
+ * Set the type-id of the partition \p part. This will only work if the disk label
+ * supports it.
+ */
+int
+ped_partition_set_type_id (PedPartition *part, uint8_t id)
+{
+        PED_ASSERT (part != NULL);
+        PED_ASSERT (part->disk != NULL);
+        PED_ASSERT (ped_partition_is_active (part));
+
+        if (!_assert_partition_type_id_feature (part->disk->type))
+                return 0;
+
+        PED_ASSERT (part->disk->type->ops->partition_set_type_id != NULL);
+        return part->disk->type->ops->partition_set_type_id (part, id);
+}
+
+/**
+ * Get the type-id of the partition \p part. This will only work if the disk label
+ * supports it.
+ */
+uint8_t
+ped_partition_get_type_id (const PedPartition *part)
+{
+        PED_ASSERT (part != NULL);
+        PED_ASSERT (part->disk != NULL);
+        PED_ASSERT (ped_partition_is_active (part));
+
+        if (!_assert_partition_type_id_feature (part->disk->type))
+                return 0;
+
+        PED_ASSERT (part->disk->type->ops->partition_get_type_id != NULL);
+        return part->disk->type->ops->partition_get_type_id (part);
+}
+
+/**
+ * Set the type-uuid of the partition \p part. This will only work if the disk label
+ * supports it.
+ */
+int
+ped_partition_set_type_uuid (PedPartition *part, const uint8_t* uuid)
+{
+        PED_ASSERT (part != NULL);
+        PED_ASSERT (part->disk != NULL);
+        PED_ASSERT (ped_partition_is_active (part));
+
+        if (!_assert_partition_type_uuid_feature (part->disk->type))
+                return 0;
+
+        PED_ASSERT (part->disk->type->ops->partition_set_type_uuid != NULL);
+        return part->disk->type->ops->partition_set_type_uuid (part, uuid);
+}
+
+/**
+ * Get the type-uuid of the partition \p part. This will only work if the disk label
+ * supports it.
+ */
+uint8_t*
+ped_partition_get_type_uuid (const PedPartition *part)
+{
+        PED_ASSERT (part != NULL);
+        PED_ASSERT (part->disk != NULL);
+        PED_ASSERT (ped_partition_is_active (part));
+
+        if (!_assert_partition_type_uuid_feature (part->disk->type))
+                return NULL;
+
+        PED_ASSERT (part->disk->type->ops->partition_get_type_uuid != NULL);
+        return part->disk->type->ops->partition_get_type_uuid (part);
+}
+
+/**
+ * Get the uuid of the partition \p part. This will only work if the disk label
+ * supports it.
+ */
+uint8_t*
+ped_partition_get_uuid (const PedPartition *part)
+{
+        PED_ASSERT (part != NULL);
+        PED_ASSERT (part->disk != NULL);
+        PED_ASSERT (ped_partition_is_active (part));
+
+        if (!_assert_partition_uuid_feature (part->disk->type))
+                return NULL;
+
+        PED_ASSERT (part->disk->type->ops->partition_get_uuid != NULL);
+        return part->disk->type->ops->partition_get_uuid (part);
+}
+
 /** @} */
 
 /**
@@ -1552,8 +1718,11 @@ ped_disk_next_partition (const PedDisk* disk, const PedPartition* part)
 		return part->part_list ? part->part_list : part->next;
 	if (part->next)
 		return part->next;
-	if (part->type & PED_PARTITION_LOGICAL)
+	if (part->type & PED_PARTITION_LOGICAL) {
+		if (!ped_disk_extended_partition (disk))
+			return NULL;
 		return ped_disk_extended_partition (disk)->next;
+	}
 	return NULL;
 }
 
@@ -1794,7 +1963,7 @@ _partition_get_overlap_constraint (PedPartition* part, PedGeometry* geom)
 	if (walk)
 		max_end = walk->geom.start - 1;
 
-	if (min_start >= max_end)
+	if (min_start > max_end)
 		return NULL;
 
 	ped_geometry_init (&free_space, part->disk->dev,
@@ -2411,6 +2580,10 @@ ped_partition_flag_get_name (PedPartitionFlag flag)
                 return N_("chromeos_kernel");
 	case PED_PARTITION_BLS_BOOT:
 		return N_("bls_boot");
+        case PED_PARTITION_LINUX_HOME:
+                return N_("linux-home");
+        case PED_PARTITION_NO_AUTOMOUNT:
+                return N_("no_automount");
 
 	default:
 		ped_exception_throw (

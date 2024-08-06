@@ -1,5 +1,5 @@
 /* libparted - a library for manipulating disk partitions
-    Copyright (C) 1999-2001, 2007-2014, 2019-2021 Free Software Foundation,
+    Copyright (C) 1999-2001, 2007-2014, 2019-2023 Free Software Foundation,
     Inc.
 
     This program is free software; you can redistribute it and/or modify
@@ -198,8 +198,9 @@ ped_file_system_close (PedFileSystem* fs)
 {
        PED_ASSERT (fs != NULL);
        PedDevice *dev = fs->geom->dev;
+       close_fn_t fn = close_fn (fs->type->name);
 
-       if (!(close_fn (fs->type->name) (fs)))
+       if (!fn || !(fn (fs)))
                goto error_close_dev;
        ped_device_close (dev);
        return 1;

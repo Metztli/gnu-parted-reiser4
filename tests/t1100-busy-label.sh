@@ -1,7 +1,7 @@
 #!/bin/sh
 # partitioning (parted -s DEV mklabel) a busy disk must fail.
 
-# Copyright (C) 2007-2014, 2019-2021 Free Software Foundation, Inc.
+# Copyright (C) 2007-2014, 2019-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,13 +19,16 @@
 . "${srcdir=.}/init.sh"; path_prepend_ ../parted
 require_root_
 require_scsi_debug_module_
+require_fat_
+require_filesystem_ vfat
+
 ss=$sector_size_
 
-scsi_debug_setup_ sector_size=$ss dev_size_mb=90 > dev-name ||
+scsi_debug_setup_ sector_size=$ss dev_size_mb=10 > dev-name ||
   skip_ 'failed to create scsi_debug device'
 dev=$(cat dev-name)
 
-parted -s "$dev" mklabel msdos mkpart primary fat32 1 40 > out 2>&1 || fail=1
+parted -s "$dev" mklabel msdos mkpart primary fat32 1 4 > out 2>&1 || fail=1
 compare /dev/null out || fail=1
 wait_for_dev_to_appear_ ${dev}1 || fail=1
 mkfs.vfat ${dev}1 || fail=1
@@ -48,7 +51,7 @@ compare exp out || fail=1
 
 # Adding a partition must succeed, even though another
 # on this same device is mounted (active).
-parted -s "$dev" mkpart primary fat32 41 85 > out 2>&1 || fail=1
+parted -s "$dev" mkpart primary fat32 5 10 > out 2>&1 || fail=1
 compare /dev/null out || fail=1
 parted -s "$dev" u s print
 
